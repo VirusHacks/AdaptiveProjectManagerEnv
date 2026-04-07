@@ -1,18 +1,139 @@
+# ==========================================
+# .dockerignore for OpenEnv/Python/FastAPI
+# ==========================================
+
 # Python virtual environments (host-specific)
 .venv/
 venv/
+env/
+ENV/
+.virtualenv/
 
 # Python cache/artifacts
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing artifacts
 .pytest_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+*.cover
+.hypothesis/
+
+# Type checking
 .mypy_cache/
+.dmypy.json
+dmyp.json
+.pytype/
 
-# VCS/editor
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# VCS
 .git/
-.vscode/
+.gitignore
+.gitattributes
 
-# Local secrets
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+.project
+.pydevproject
+
+# OS-specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE_BIN/
+
+# Environment and secrets (NEVER include in Docker image)
 .env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets.yaml
+.secrets/
+
+# Documentation
+*.md
+!README.md
+docs/
+*.txt
+!requirements.txt
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+Jenkinsfile
+
+# Logs
+*.log
+logs/
+*.out
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Local development
+.temp/
+.tmp/
+temp/
+tmp/
+scratch/
+
+# Large model files (download at runtime or use volume mounts)
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.safetensors
+models/
+checkpoints/
+
+# Data files (mount as volumes instead)
+data/
+datasets/
+*.csv
+*.parquet
+*.arrow
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# Development tools
+Makefile
+docker-compose.yml
+docker-compose.*.yml
+
+# Lock files (include only what's needed)
+# Keep uv.lock if using uv for reproducibility
+# Uncomment to exclude: uv.lock

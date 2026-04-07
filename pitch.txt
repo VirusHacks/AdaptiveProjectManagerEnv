@@ -1,0 +1,4 @@
+Existing PM tools are static. Our environment evaluates whether AI can make adaptive managerial decisions under uncertainty
+
+Why is RL needed here ? 
+Project management has delayed consequences, uncertainty, and conflicting objectives. Simple heuristics may work for easy projects but fail when unexpected events force long-term tradeoffs between delivery speed, cost, and team health.

@@ -1,3 +1,92 @@
+# Python virtual environments
+.venv/
 venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
 
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmyp.json
+.pytype/
+pyrightconfig.json
+
+# Environment variables and secrets
 .env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets.yaml
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Logs
+*.log
+logs/
+*.out
+
+# Local development
+.temp/
+.tmp/
+temp/
+tmp/
+
+# Model files and data (add specific patterns as needed)
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.pkl
+*.joblib
+data/
+datasets/
+checkpoints/
+
+# HuggingFace cache (optional - uncomment if you don't want to commit)
+# .cache/
+# huggingface/
+
+# uv lock file (keep this commented if you want to commit it for reproducibility)
+# uv.lock
