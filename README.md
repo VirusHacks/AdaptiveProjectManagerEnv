@@ -1,268 +1,249 @@
 ---
-title: Hustlers Env Environment Server
-emoji: 📯
-colorFrom: gray
-colorTo: gray
+title: Adaptive Project Manager Environment
+emoji: 📊
+colorFrom: blue
+colorTo: green
 sdk: docker
 pinned: false
 app_port: 8000
 base_path: /web
 tags:
   - openenv
+  - rl
+  - project-management
 ---
 
-# Hustlers Env Environment
+# Adaptive Project Manager Environment
 
-A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
+An OpenEnv-compatible reinforcement learning environment that simulates software project management under uncertainty. Agents must manage employees, assign tasks, handle unexpected events, and deliver projects on time while maintaining team health.
 
-## Local setup
+## Overview
 
-If you want to run the inference script locally, copy `.env.example` to `.env` and fill in the values you need.
+The environment simulates one project day per step. The agent receives observations about the project state and must make decisions about:
+- **Task assignments**: Which employees work on which tasks
+- **Resource management**: When to use overtime, hire contractors, or defer work
+- **Crisis response**: Handling unexpected events like employee illness or scope changes
+
+## Tasks
+
+Three difficulty levels with deterministic task configurations:
+
+| Task | Employees | Tasks | Days | Key Challenges |
+|------|-----------|-------|------|----------------|
+| `easy` | 3 | 5 | 12 | Basic project, no surprises |
+| `medium` | 4 | 9 | 18 | Employee illness on day 6, scope change on day 10 |
+| `hard` | 5 | 14+ | 25 | Multiple crises: illness, new compliance task, vendor delays, burnout effects |
+
+## Local Setup
+
+Copy `.env.example` to `.env` and configure:
 
 ```text
 HF_TOKEN=your_hugging_face_token_here
 API_BASE_URL=https://router.huggingface.co/v1
 MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
-LOCAL_IMAGE_NAME=hustlers_env:latest
+LOCAL_IMAGE_NAME=adaptive-project-manager:latest
 ```
-
-You can leave the optional fields blank if you do not need them.
 
 ## Quick Start
 
-The simplest way to use the Hustlers Env environment is through the `HustlersEnv` class:
-
 ```python
-from hustlers_env import HustlersAction, HustlersEnv
+from client import AdaptiveProjectManagerClient
+from models import ProjectAction, Assignment
+
+# Create environment from Docker image
+env = await AdaptiveProjectManagerClient.from_docker_image("adaptive-project-manager:latest")
 
 try:
-    # Create environment from Docker image
-    hustlers_envenv = HustlersEnv.from_docker_image("hustlers_env:latest")
+    # Reset with a task
+    result = await env.reset(task_id="easy")
+    obs = result.observation
+    print(f"Day {obs.day}: {len(obs.tasks)} tasks, {len(obs.employees)} employees")
 
-    # Reset
-    result = hustlers_envenv.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-
-    # Send multiple messages
-    messages = ["Hello, World!", "Testing echo", "Final message"]
-
-    for msg in messages:
-        result = hustlers_envenv.step(HustlersAction(message=msg))
-        print(f"Sent: '{msg}'")
-        print(f"  → Echoed: '{result.observation.echoed_message}'")
-        print(f"  → Length: {result.observation.message_length}")
-        print(f"  → Reward: {result.reward}")
+    # Run episode
+    while not result.done:
+        # Create action: assign employees to tasks
+        action = ProjectAction(
+            assignments=[
+                Assignment(employee_id="emp_1", task_id="task_1"),
+                Assignment(employee_id="emp_2", task_id="task_2"),
+            ],
+            contingency_action="none"  # or "request_overtime", "hire_contractor", "defer_low_priority_work"
+        )
+        
+        result = await env.step(action)
+        obs = result.observation
+        print(f"Day {obs.day}: Completion={obs.project_completion:.1%}, Burnout={obs.average_burnout:.2f}")
 
 finally:
-    # Always clean up
-    hustlers_envenv.close()
+    await env.close()
 ```
 
-That's it! The `HustlersEnv.from_docker_image()` method handles:
-- Starting the Docker container
-- Waiting for the server to be ready
-- Connecting to the environment
-- Container cleanup when you call `close()`
+## Environment API
 
-## Building the Docker Image
-
-Before using the environment, you need to build the Docker image:
-
-```bash
-# From project root
-docker build -t hustlers_env:latest -f server/Dockerfile .
-```
-
-## Deploying to Hugging Face Spaces
-
-You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
-
-```bash
-# From the environment directory (where openenv.yaml is located)
-openenv push
-
-# Or specify options
-openenv push --namespace my-org --private
-```
-
-The `openenv push` command will:
-1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
-2. Prepare a custom build for Hugging Face Docker space (enables web interface)
-3. Upload to Hugging Face (ensuring you're logged in)
-
-### Prerequisites
-
-- Authenticate with Hugging Face: The command will prompt for login if not already authenticated
-
-### Options
-
-- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
-- `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
-- `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
-- `--private`: Deploy the space as private (default: public)
-
-### Examples
-
-```bash
-# Push to your personal namespace (defaults to username/env-name from openenv.yaml)
-openenv push
-
-# Push to a specific repository
-openenv push --repo-id my-org/my-env
-
-# Push with a custom base image
-openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
-
-# Push as a private space
-openenv push --private
-
-# Combine options
-openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
-```
-
-After deployment, your space will be available at:
-`https://huggingface.co/spaces/<repo-id>`
-
-The deployed space includes:
-- **Web Interface** at `/web` - Interactive UI for exploring the environment
-- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
-- **Health Check** at `/health` - Container health monitoring
-- **WebSocket** at `/ws` - Persistent session endpoint for low-latency interactions
-
-## Environment Details
-
-### Action
-**HustlersAction**: Contains a single field
-- `message` (str) - The message to echo back
-
-### Observation
-**HustlersObservation**: Contains the echo response and metadata
-- `echoed_message` (str) - The message echoed back
-- `message_length` (int) - Length of the message
-- `reward` (float) - Reward based on message length (length × 0.1)
-- `done` (bool) - Always False for echo environment
-- `metadata` (dict) - Additional info like step count
-
-### Reward
-The reward is calculated as: `message_length × 0.1`
-- "Hi" → reward: 0.2
-- "Hello, World!" → reward: 1.3
-- Empty message → reward: 0.0
-
-## Advanced Usage
-
-### Connecting to an Existing Server
-
-If you already have a Hustlers Env environment server running, you can connect directly:
+### Action Space
 
 ```python
-from hustlers_env import HustlersEnv
-
-# Connect to existing server
-hustlers_envenv = HustlersEnv(base_url="<ENV_HTTP_URL_HERE>")
-
-# Use as normal
-result = hustlers_envenv.reset()
-result = hustlers_envenv.step(HustlersAction(message="Hello!"))
+class ProjectAction:
+    assignments: List[Assignment]           # Employee-to-task assignments
+    reprioritized_tasks: List[str]         # Tasks to mark as critical
+    contingency_action: Literal[
+        "none",
+        "request_overtime",        # +20% productivity, increases burnout
+        "hire_contractor",         # Adds versatile employee, costs more
+        "defer_low_priority_work"  # Blocks low-priority tasks
+    ]
 ```
 
-Note: When connecting to an existing server, `hustlers_envenv.close()` will NOT stop the server.
-
-### Using the Context Manager
-
-The client supports context manager usage for automatic connection management:
+### Observation Space
 
 ```python
-from hustlers_env import HustlersAction, HustlersEnv
-
-# Connect with context manager (auto-connects and closes)
-with HustlersEnv(base_url="http://localhost:8000") as env:
-    result = env.reset()
-    print(f"Reset: {result.observation.echoed_message}")
-    # Multiple steps with low latency
-    for msg in ["Hello", "World", "!"]:
-        result = env.step(HustlersAction(message=msg))
-        print(f"Echoed: {result.observation.echoed_message}")
+class ProjectObservation:
+    day: int                    # Current project day
+    days_remaining: int         # Days until deadline
+    budget_remaining: float     # Remaining budget
+    project_completion: float   # Overall completion (0-1)
+    blocked_tasks: int          # Number of blocked tasks
+    overdue_tasks: int          # Number of overdue tasks
+    average_burnout: float      # Team burnout level (0-1)
+    tasks: List[TaskState]      # All task details
+    employees: List[EmployeeState]  # All employee details
+    risks: List[RiskState]      # Active risks
+    message: str                # Recent events description
 ```
 
-The client uses WebSocket connections for:
-- **Lower latency**: No HTTP connection overhead per request
-- **Persistent session**: Server maintains your environment state
-- **Efficient for episodes**: Better for many sequential steps
-
-### Concurrent WebSocket Sessions
-
-The server supports multiple concurrent WebSocket connections. To enable this,
-modify `server/app.py` to use factory mode:
+### Task State
 
 ```python
-# In server/app.py - use factory mode for concurrent sessions
-app = create_app(
-    HustlersEnvironment,  # Pass class, not instance
-    HustlersAction,
-    HustlersObservation,
-    max_concurrent_envs=4,  # Allow 4 concurrent sessions
+class TaskState:
+    id: str
+    priority: Literal["low", "medium", "high", "critical"]
+    status: Literal["todo", "in_progress", "blocked", "done"]
+    required_skill: str
+    remaining_effort: float
+    dependencies: List[str]
+    is_critical_path: bool
+    assigned_employees: List[str]
+```
+
+### Employee State
+
+```python
+class EmployeeState:
+    id: str
+    skills: List[str]
+    available: bool
+    assigned_task_id: Optional[str]
+    workload: float   # 0-1
+    burnout: float    # 0-1, >0.8 causes 50% productivity
+```
+
+## Mechanics
+
+### Productivity Calculation
+
+```python
+productivity = sum(skill_match_scores) * coordination_factor
+
+# Skill matching
+exact_match = 1.0
+partial_match = 0.5
+no_match = 0.0
+
+# Coordination penalty for multiple employees on same task
+coordination_factor = 1 / (1 + 0.15 * (n_assigned - 1))
+```
+
+### Burnout System
+
+```python
+# Daily update
+burnout += 0.15 * workload - 0.05 * recovery
+
+# Overtime increases burnout by additional 0.1
+# Burnout > 0.8 reduces productivity to 50%
+```
+
+### Reward Function
+
+```python
+step_reward = (
+    5 * newly_completed_critical_tasks
+    + 2 * newly_completed_normal_tasks
+    + 1 * newly_unblocked_tasks
+    + 0.5 * skill_match_count
+    - 0.25                          # Base cost per step
+    - 3 * overdue_critical_tasks
+    - burnout_penalty
+    - reassignment_penalty
 )
 ```
 
-Then multiple clients can connect simultaneously:
+### Final Score
 
 ```python
-from hustlers_env import HustlersAction, HustlersEnv
-from concurrent.futures import ThreadPoolExecutor
-
-def run_episode(client_id: int):
-    with HustlersEnv(base_url="http://localhost:8000") as env:
-        result = env.reset()
-        for i in range(10):
-            result = env.step(HustlersAction(message=f"Client {client_id}, step {i}"))
-        return client_id, result.observation.message_length
-
-# Run 4 episodes concurrently
-with ThreadPoolExecutor(max_workers=4) as executor:
-    results = list(executor.map(run_episode, range(4)))
+final_score = (
+    0.35 * completion_score        # Weighted by task priority
+    + 0.25 * deadline_score        # Bonus for early, penalty for late
+    + 0.15 * budget_score          # Remaining budget
+    + 0.15 * team_health_score     # Inverse of burnout
+    + 0.10 * stakeholder_satisfaction
+)
+# Clamped to [0.0, 1.0]
 ```
 
-## Development & Testing
-
-### Direct Environment Testing
-
-Test the environment logic directly without starting the HTTP server:
+## Building the Docker Image
 
 ```bash
-# From the server directory
-python3 server/hustlers_env_environment.py
+docker build -t adaptive-project-manager:latest .
+docker run -p 8000:8000 adaptive-project-manager:latest
 ```
 
-This verifies that:
-- Environment resets correctly
-- Step executes actions properly
-- State tracking works
-- Rewards are calculated correctly
-
-### Running Locally
-
-Run the server locally for development:
+## Running Inference
 
 ```bash
-uvicorn server.app:app --reload
+python inference.py
+```
+
+Output format:
+```
+[START] task=easy
+[STEP] day=2 action={"assignments":[{"e":"emp_1","t":"task_1"}],"contingency":"none"} reward=0.50
+[END] task=easy score=0.85
 ```
 
 ## Project Structure
 
 ```
-hustlers_env/
-├── .dockerignore         # Docker build exclusions
-├── __init__.py            # Module exports
-├── README.md              # This file
-├── openenv.yaml           # OpenEnv manifest
-├── pyproject.toml         # Project metadata and dependencies
-├── uv.lock                # Locked dependencies (generated)
-├── client.py              # HustlersEnv client
-├── models.py              # Action and Observation models
-└── server/
-    ├── __init__.py        # Server module exports
-    ├── hustlers_env_environment.py  # Core environment logic
-    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
-    └── Dockerfile         # Container image definition
+adaptive-project-manager/
+├── models.py              # Pydantic models (Action, Observation, State)
+├── client.py              # Environment client
+├── inference.py           # LLM inference script
+├── openenv.yaml           # OpenEnv configuration
+├── pyproject.toml         # Dependencies
+├── Dockerfile             # Container definition
+├── server/
+│   ├── app.py             # FastAPI application
+│   └── hustlers_env_environment.py  # Core environment logic
+├── tasks/
+│   ├── easy.py            # Easy task configuration
+│   ├── medium.py          # Medium task configuration
+│   └── hard.py            # Hard task configuration
+└── graders/
+    ├── base_grader.py     # Shared grading logic
+    ├── easy_grader.py     # Easy task grader
+    ├── medium_grader.py   # Medium task grader
+    └── hard_grader.py     # Hard task grader
+```
+
+## Testing
+
+```bash
+uv run python -m pytest test_main.py -v
+```
+
+## Deployment
+
+```bash
+openenv push --repo-id your-username/adaptive-project-manager
 ```

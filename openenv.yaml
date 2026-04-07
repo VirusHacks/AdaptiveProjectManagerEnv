@@ -1,7 +1,11 @@
 spec_version: 1
-name: hustlers_env
+name: adaptive-project-manager
 type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
+tasks:
+  - easy
+  - medium
+  - hard
 

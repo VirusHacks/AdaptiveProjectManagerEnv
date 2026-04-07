@@ -4,25 +4,31 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Hustlers Env Environment Client."""
+"""Adaptive Project Manager Environment Client."""
 
-from typing import Dict
+from typing import Dict, List
 
 from openenv.core import EnvClient
 from openenv.core.client_types import StepResult
 from openenv.core.env_server.types import State
 
 try:
-    from .models import HustlersAction, HustlersObservation
+    from .models import (
+        ProjectAction, ProjectObservation, Assignment,
+        TaskState, EmployeeState, RiskState,
+    )
 except ImportError:
-    from models import HustlersAction, HustlersObservation
+    from models import (
+        ProjectAction, ProjectObservation, Assignment,
+        TaskState, EmployeeState, RiskState,
+    )
 
 
-class HustlersEnv(
-    EnvClient[HustlersAction, HustlersObservation, State]
+class AdaptiveProjectManagerClient(
+    EnvClient[ProjectAction, ProjectObservation, State]
 ):
     """
-    Client for the Hustlers Env Environment.
+    Client for the Adaptive Project Manager Environment.
 
     This client maintains a persistent WebSocket connection to the environment server,
     enabling efficient multi-step interactions with lower latency.
@@ -30,51 +36,79 @@ class HustlersEnv(
 
     Example:
         >>> # Connect to a running server
-        >>> with HustlersEnv(base_url="http://localhost:8000") as client:
-        ...     result = client.reset()
-        ...     print(result.observation.echoed_message)
+        >>> with AdaptiveProjectManagerClient(base_url="http://localhost:8000") as client:
+        ...     result = client.reset(task_id="easy")
+        ...     print(f"Day {result.observation.day}, {result.observation.days_remaining} days remaining")
         ...
-        ...     result = client.step(HustlersAction(message="Hello!"))
-        ...     print(result.observation.echoed_message)
+        ...     action = ProjectAction(
+        ...         assignments=[Assignment(employee_id="emp_1", task_id="task_1")]
+        ...     )
+        ...     result = client.step(action)
 
     Example with Docker:
         >>> # Automatically start container and connect
-        >>> client = HustlersEnv.from_docker_image("hustlers_env-env:latest")
+        >>> client = AdaptiveProjectManagerClient.from_docker_image("adaptive-project-manager:latest")
         >>> try:
-        ...     result = client.reset()
-        ...     result = client.step(HustlersAction(message="Test"))
+        ...     result = client.reset(task_id="easy")
+        ...     result = client.step(ProjectAction(assignments=[]))
         ... finally:
         ...     client.close()
     """
 
-    def _step_payload(self, action: HustlersAction) -> Dict:
+    def _step_payload(self, action: ProjectAction) -> Dict:
         """
-        Convert HustlersAction to JSON payload for step message.
+        Convert ProjectAction to JSON payload for step message.
 
         Args:
-            action: HustlersAction instance
+            action: ProjectAction instance
 
         Returns:
             Dictionary representation suitable for JSON encoding
         """
-        return {
-            "message": action.message,
-        }
+        # Use Pydantic's model_dump to ensure proper serialization
+        # This includes the metadata field from the Action base class
+        return action.model_dump()
 
-    def _parse_result(self, payload: Dict) -> StepResult[HustlersObservation]:
+    def _parse_result(self, payload: Dict) -> StepResult[ProjectObservation]:
         """
-        Parse server response into StepResult[HustlersObservation].
+        Parse server response into StepResult[ProjectObservation].
 
         Args:
             payload: JSON response data from server
 
         Returns:
-            StepResult with HustlersObservation
+            StepResult with ProjectObservation
         """
         obs_data = payload.get("observation", {})
-        observation = HustlersObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
+        
+        # Parse tasks
+        tasks = [
+            TaskState(**t) for t in obs_data.get("tasks", [])
+        ]
+        
+        # Parse employees
+        employees = [
+            EmployeeState(**e) for e in obs_data.get("employees", [])
+        ]
+        
+        # Parse risks
+        risks = [
+            RiskState(**r) for r in obs_data.get("risks", [])
+        ]
+        
+        observation = ProjectObservation(
+            day=obs_data.get("day", 1),
+            days_remaining=obs_data.get("days_remaining", 0),
+            budget_remaining=obs_data.get("budget_remaining", 0.0),
+            project_completion=obs_data.get("project_completion", 0.0),
+            blocked_tasks=obs_data.get("blocked_tasks", 0),
+            overdue_tasks=obs_data.get("overdue_tasks", 0),
+            average_burnout=obs_data.get("average_burnout", 0.0),
+            tasks=tasks,
+            employees=employees,
+            risks=risks,
+            message=obs_data.get("message", ""),
+            critical_path_progress=obs_data.get("critical_path_progress", 0.0),
             done=payload.get("done", False),
             reward=payload.get("reward"),
             metadata=obs_data.get("metadata", {}),
@@ -100,3 +134,7 @@ class HustlersEnv(
             episode_id=payload.get("episode_id"),
             step_count=payload.get("step_count", 0),
         )
+
+
+# Legacy alias
+HustlersEnv = AdaptiveProjectManagerClient

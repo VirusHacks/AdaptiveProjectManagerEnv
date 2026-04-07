@@ -5,9 +5,9 @@
 # LICENSE file in the root directory of this source tree.
 
 """
-FastAPI application for the Hustlers Env Environment.
+FastAPI application for the Adaptive Project Manager Environment.
 
-This module creates an HTTP server that exposes the HustlersEnvironment
+This module creates an HTTP server that exposes the AdaptiveProjectManagerEnv
 over HTTP and WebSocket endpoints, compatible with EnvClient.
 
 Endpoints:
@@ -36,19 +36,19 @@ except Exception as e:  # pragma: no cover
     ) from e
 
 try:
-    from ..models import HustlersAction, HustlersObservation
-    from .hustlers_env_environment import HustlersEnvironment
+    from ..models import ProjectAction, ProjectObservation
+    from .hustlers_env_environment import AdaptiveProjectManagerEnv
 except ImportError:
-    from models import HustlersAction, HustlersObservation
-    from server.hustlers_env_environment import HustlersEnvironment
+    from models import ProjectAction, ProjectObservation
+    from server.hustlers_env_environment import AdaptiveProjectManagerEnv
 
 
 # Create the app with web interface and README integration
 app = create_app(
-    HustlersEnvironment,
-    HustlersAction,
-    HustlersObservation,
-    env_name="hustlers_env",
+    AdaptiveProjectManagerEnv,
+    ProjectAction,
+    ProjectObservation,
+    env_name="adaptive-project-manager",
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
 )
 
