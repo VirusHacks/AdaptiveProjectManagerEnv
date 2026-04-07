@@ -17,7 +17,7 @@ WORKDIR /app
 
 # Ensure git is available (required for installing dependencies from VCS)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git && \
+    apt-get install -y --no-install-recommends git python3-venv && \
     rm -rf /var/lib/apt/lists/*
 
 # Build argument to control whether we're building standalone or in-repo
@@ -41,6 +41,7 @@ RUN if ! command -v uv >/dev/null 2>&1; then \
 # Install dependencies using uv sync
 # If uv.lock exists, use it; otherwise resolve on the fly
 RUN --mount=type=cache,target=/root/.cache/uv \
+    rm -rf .venv && \
     if [ -f uv.lock ]; then \
         uv sync --frozen --no-install-project --no-editable; \
     else \
@@ -69,7 +70,9 @@ COPY --from=builder /app/env /app/env
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Set PYTHONPATH so imports work correctly
-ENV PYTHONPATH="/app/env:$PYTHONPATH"
+ENV PYTHONPATH="/app/env"
+
+ENV ENABLE_WEB_INTERFACE=true
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

@@ -1,0 +1,18 @@
+# Python virtual environments (host-specific)
+.venv/
+venv/
+
+# Python cache/artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# VCS/editor
+.git/
+.vscode/
+
+# Local secrets
+.env

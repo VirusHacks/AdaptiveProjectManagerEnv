@@ -38,7 +38,7 @@ except Exception as e:  # pragma: no cover
 try:
     from ..models import HustlersAction, HustlersObservation
     from .hustlers_env_environment import HustlersEnvironment
-except ModuleNotFoundError:
+except ImportError:
     from models import HustlersAction, HustlersObservation
     from server.hustlers_env_environment import HustlersEnvironment
 

@@ -15,6 +15,19 @@ tags:
 
 A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
 
+## Local setup
+
+If you want to run the inference script locally, copy `.env.example` to `.env` and fill in the values you need.
+
+```text
+HF_TOKEN=your_hugging_face_token_here
+API_BASE_URL=https://router.huggingface.co/v1
+MODEL_NAME=Qwen/Qwen2.5-72B-Instruct
+LOCAL_IMAGE_NAME=hustlers_env:latest
+```
+
+You can leave the optional fields blank if you do not need them.
+
 ## Quick Start
 
 The simplest way to use the Hustlers Env environment is through the `HustlersEnv` class:
@@ -24,7 +37,7 @@ from hustlers_env import HustlersAction, HustlersEnv
 
 try:
     # Create environment from Docker image
-    hustlers_envenv = HustlersEnv.from_docker_image("hustlers_env-env:latest")
+    hustlers_envenv = HustlersEnv.from_docker_image("hustlers_env:latest")
 
     # Reset
     result = hustlers_envenv.reset()
@@ -57,7 +70,7 @@ Before using the environment, you need to build the Docker image:
 
 ```bash
 # From project root
-docker build -t hustlers_env-env:latest -f server/Dockerfile .
+docker build -t hustlers_env:latest -f server/Dockerfile .
 ```
 
 ## Deploying to Hugging Face Spaces

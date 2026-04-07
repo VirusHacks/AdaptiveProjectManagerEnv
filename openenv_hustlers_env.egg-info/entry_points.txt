@@ -1,0 +1,2 @@
+[console_scripts]
+server = hustlers_env.server.app:main
