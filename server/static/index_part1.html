@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adaptive Project Manager - Live Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+        .container { max-width: 1800px; margin: 0 auto; background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .header { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white; padding: 30px 40px; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { font-size: 32px; font-weight: 700; }
+        .header .task-badge { background: rgba(255,255,255,0.2); padding: 8px 20px; border-radius: 20px; font-size: 14px; }
+        .main-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; min-height: calc(100vh - 200px); }
+        .panel { padding: 30px; border-right: 1px solid #e0e0e0; overflow-y: auto; }
+        .panel:last-child { border-right: none; }
+        .panel-header { font-size: 20px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+        .panel-icon { font-size: 28px; }
+        #dependency-graph { width: 100%; height: 350px; border: 2px solid #e0e0e0; border-radius: 12px; margin-bottom: 20px; background: #fafafa; }
+        .metric-card { background: #f5f7fa; padding: 15px; border-radius: 10px; margin-bottom: 12px; border-left: 4px solid #667eea; }
+        .metric-label { font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .metric-value { font-size: 24px; font-weight: 700; color: #1e3c72; }
+        .employee-card { background: white; border: 2px solid #e0e0e0; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+        .employee-name { font-weight: 600; font-size: 14px; margin-bottom: 5px; }
+        .burnout-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-top: 5px; }
+        .burnout-fill { height: 100%; background: linear-gradient(90deg, #4caf50, #ff9800, #f44336); transition: width 0.3s ease; }
+        .assignment-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 10px; margin-bottom: 12px; }
+        .assignment-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .skill-match { background: rgba(255,255,255,0.3); padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .skill-match.perfect { background: #4caf50; }
+        .skill-match.partial { background: #ff9800; }
+        .critical-path-indicator { background: #ff5252; color: white; padding: 12px 15px; border-radius: 8px; margin: 10px 0 20px 0; font-size: 13px; font-weight: 600; }
+        #reward-chart { width: 100%; height: 250px; margin-bottom: 20px; }
+        .timeline { max-height: 400px; overflow-y: auto; }
+        .timeline-item { padding: 12px; border-left: 3px solid #667eea; margin-left: 10px; margin-bottom: 15px; background: #f5f7fa; border-radius: 0 8px 8px 0; }
+        .timeline-day { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+        .timeline-event { font-size: 14px; color: #1e3c72; }
+        .timeline-item.complete { border-left-color: #4caf50; background: #e8f5e9; }
+        .timeline-item.warning { border-left-color: #ff9800; background: #fff3e0; }
+        .timeline-item.error { border-left-color: #f44336; background: #ffebee; }
+        .controls { padding: 20px 40px; background: #f5f7fa; display: flex; gap: 10px; justify-content: center; align-items: center; }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); }
+        .btn-secondary { background: white; color: #667eea; border: 2px solid #667eea; }
+        .btn-secondary:hover { background: #667eea; color: white; }
+        .task-selector { display: flex; gap: 10px; align-items: center; }
+        .task-selector select { padding: 10px 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+        .legend { display: flex; gap: 15px; margin-top: 10px; font-size: 12px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-color { width: 16px; height: 16px; border-radius: 3px; }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+        .empty-state-icon { font-size: 48px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🎯 Adaptive Project Manager</h1>
+                <div style="margin-top: 8px; font-size: 14px; opacity: 0.9;">Watch AI manage projects in real-time</div>
+            </div>
+            <div class="task-badge"><span id="current-task">Not Started</span> | Day <span id="current-day">0</span></div>
+        </div>
+        <div class="main-grid">
+            <div class="panel">
+                <div class="panel-header"><span class="panel-icon">👁️</span><span>What Agent Sees</span></div>
+                <div id="dependency-graph"></div>
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-color" style="background: #f44336;"></div><span>High Blocker</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background: #ff9800;"></div><span>Medium</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background: #4caf50;"></div><span>Low</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background: #9e9e9e;"></div><span>Done</span></div>
+                </div>
+                <div style="margin-top: 30px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px; color: #666;">📊 Project Metrics</h3>
+                    <div class="metric-card"><div class="metric-label">Completion</div><div class="metric-value" id="completion">0%</div></div>
+                    <div class="metric-card" style="border-left-color: #ff9800;"><div class="metric-label">Blocked Tasks</div><div class="metric-value" id="blocked-tasks" style="color: #ff9800;">0</div></div>
+                    <div class="metric-card" style="border-left-color: #f44336;"><div class="metric-label">Days Remaining</div><div class="metric-value" id="days-remaining" style="color: #f44336;">0</div></div>
+                    <div class="metric-card" style="border-left-color: #2196f3;"><div class="metric-label">Budget</div><div class="metric-value" id="budget-remaining" style="color: #2196f3;">$0</div></div>
+                </div>
+                <div style="margin-top: 30px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px; color: #666;">👥 Team</h3>
+                    <div id="employees-list"></div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-icon">🧠</span><span>What Agent Decides</span></div>
+                <div id="critical-path-info"></div>
+                <h3 style="font-size: 16px; margin-bottom: 15px; color: #666;">📋 Assignments</h3>
+                <div id="assignments-list"></div>
+                <div style="margin-top: 30px;">
+                    <h3 style="font-size: 16px; margin-bottom: 15px; color: #666;">⚙️ Contingency</h3>
+                    <div id="contingency-action" style="padding: 15px; background: #f5f7fa; border-radius: 10px; font-size: 14px;">None</div>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-icon">📈</span><span>What Happens</span></div>
+                <h3 style="font-size: 16px; margin-bottom: 15px; color: #666;">💰 Reward Breakdown</h3>
+                <canvas id="reward-chart"></canvas>
+                <div class="metric-card" style="margin-top: 20px; border-left-color: #4caf50;"><div class="metric-label">Step Reward</div><div class="metric-value" id="step-reward" style="color: #4caf50;">0.00</div></div>
+                <div class="metric-card" style="border-left-color: #667eea;"><div class="metric-label">Total Reward</div><div class="metric-value" id="total-reward" style="color: #667eea;">0.00</div></div>
+                <h3 style="font-size: 16px; margin-bottom: 15px; margin-top: 30px; color: #666;">📝 Timeline</h3>
+                <div class="timeline" id="timeline"><div class="empty-state"><div class="empty-state-icon">📝</div><div>Events will appear here</div></div></div>
+            </div>
+        </div>
+        <div class="controls">
+            <div class="task-selector">
+                <label style="font-weight: 600; color: #666;">Task:</label>
+                <select id="task-select">
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+            <button class="btn btn-secondary" id="reset-btn">↻ Reset</button>
+            <button class="btn btn-primary" id="step-btn">▶ Next Step</button>
+            <button class="btn btn-primary" id="auto-btn">⚡ Auto Play</button>
+        </div>
+    </div>

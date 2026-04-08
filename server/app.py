@@ -35,22 +35,51 @@ except Exception as e:  # pragma: no cover
         "openenv is required for the web interface. Install dependencies with '\n    uv sync\n'"
     ) from e
 
+import os
+from pathlib import Path
+
+from fastapi.responses import HTMLResponse
+
 try:
     from ..models import ProjectAction, ProjectObservation
     from .hustlers_env_environment import AdaptiveProjectManagerEnv
+    from .custom_gradio_ui import build_gradio_ui
 except ImportError:
     from models import ProjectAction, ProjectObservation
     from server.hustlers_env_environment import AdaptiveProjectManagerEnv
+    from server.custom_gradio_ui import build_gradio_ui
 
 
-# Create the app with web interface and README integration
+# Ensure README is visible in OpenEnv web panel during local development.
+# OpenEnv checks ENV_README_PATH; default lookup does not include repo-root README.md.
+repo_root = Path(__file__).resolve().parent.parent
+readme_path = repo_root / "README.md"
+os.environ.setdefault("ENABLE_WEB_INTERFACE", "true")
+if readme_path.exists():
+    os.environ.setdefault("ENV_README_PATH", str(readme_path))
+
+
+# Create the app with custom Mission Control Dashboard
 app = create_app(
     AdaptiveProjectManagerEnv,
     ProjectAction,
     ProjectObservation,
     env_name="adaptive-project-manager",
     max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
+    gradio_builder=build_gradio_ui,  # Use custom NASA-inspired dashboard
 )
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard() -> HTMLResponse:
+    """Serve static dashboard HTML if present."""
+    dashboard_file = repo_root / "server" / "static" / "index.html"
+    if dashboard_file.exists():
+        return HTMLResponse(content=dashboard_file.read_text(encoding="utf-8"))
+    return HTMLResponse(
+        content="<h1>Dashboard not found</h1><p>Add server/static/index.html and refresh.</p>",
+        status_code=404,
+    )
 
 
 def main(host: str = "0.0.0.0", port: int = 8000):

@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Manager • Mission Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Crimson+Pro:wght@600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --amber: #FFB84D;
+            --cyan: #00D9FF;
+            --green: #00FF88;
+            --red: #FF4757;
+            --bg-dark: #0A0E1A;
+            --bg-panel: #151B2D;
+            --bg-card: #1E2738;
+            --text-primary: #E8EAF0;
+            --text-secondary: #8B93B0;
+            --border: #2A3447;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'IBM Plex Mono', monospace;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.15) 0px, transparent 2px);
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.3;
+        }
+        
+        .header {
+            background: var(--bg-panel);
+            border-bottom: 2px solid var(--amber);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        
+        .header h1 {
+            font-family: 'Crimson Pro', serif;
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--amber);
+            text-transform: uppercase;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 30px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .container {
+            padding: 30px;
+            max-width: 2000px;
+            margin: 0 auto;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--cyan), var(--amber));
+            opacity: 0.6;
+        }
+        
+        .panel-header {
+            font-family: 'Crimson Pro', serif;
+            font-size: 18px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            color: var(--cyan);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-header-icon {
+            font-size: 20px;
+            opacity: 0.7;
+        }
+        
+        #dependency-viz {
+            height: 320px;
+            background: var(--bg-card);
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        
+        .metric {
+            background: var(--bg-card);
+            border-left: 3px solid var(--cyan);
+            padding: 15px;
+            border-radius: 4px;
+        }
+        
+        .metric-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        
+        .metric-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: var(--amber);
+            font-family: 'IBM Plex Mono', monospace;
+        }
+        
+        .employee-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .employee {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .employee:hover {
+            border-color: var(--cyan);
+            transform: translateX(4px);
+        }
+        
+        .employee-name {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .employee-skills {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+        
+        .burnout-indicator {
+            width: 60px;
+            height: 6px;
+            background: var(--bg-dark);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .burnout-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--green), var(--amber), var(--red));
+            transition: width 0.5s ease;
+        }
+        
+        .assignment {
+            background: linear-gradient(135deg, #1E2738, #2A3447);
+            border-left: 4px solid var(--amber);
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            animation: slideIn 0.4s ease;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .assignment-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .assignment-emp {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .skill-badge {
+            font-size: 10px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .skill-badge.perfect {
+            background: var(--green);
+            color: var(--bg-dark);
+        }
+        
+        .skill-badge.partial {
+            background: var(--amber);
+            color: var(--bg-dark);
+        }
+        
+        .assignment-task {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        
+        .critical-alert {
+            background: rgba(255, 71, 87, 0.15);
+            border: 2px solid var(--red);
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: glow 2s infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(255, 71, 87, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(255, 71, 87, 0.6); }
+        }
+        
+        #reward-viz {
+            height: 220px;
+            margin-bottom: 20px;
+        }
+        
+        .timeline {
+            max-height: 350px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        
+        .timeline::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .timeline::-webkit-scrollbar-track {
+            background: var(--bg-card);
+        }
+        
+        .timeline::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        
+        .timeline-event {
+            border-left: 2px solid var(--cyan);
+            padding-left: 15px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            position: relative;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .timeline-event::before {
+            content: '';
+            position: absolute;
+            left: -6px;
+            top: 0;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--cyan);
+        }
+        
+        .timeline-event.complete::before {
+            background: var(--green);
+        }
+        
+        .timeline-event.complete {
+            border-left-color: var(--green);
+        }
+        
+        .timeline-event.warning::before {
+            background: var(--amber);
+        }
+        
+        .timeline-event.warning {
+            border-left-color: var(--amber);
+        }
+        
+        .timeline-day {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-secondary);
+            margin-bottom: 5px;
+        }
+        
+        .timeline-message {
+            font-size: 12px;
+            color: var(--text-primary);
+        }
+        
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            gap: 12px;
+            z-index: 200;
+        }
+        
+        .btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 4px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--amber), #FF8C42);
+            color: var(--bg-dark);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 184, 77, 0.4);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-panel);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+        
+        .task-select {
+            background: var(--bg-panel);
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+            padding: 14px 20px;
+            border-radius: 4px;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+            font-size: 12px;
+        }
+        
+        .legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+            font-size: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .legend-box {
+            width: 14px;
+            height: 14px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="scanlines"></div>
+    
+    <div class="header">
+        <h1>◉ Mission Control</h1>
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot"></div>
+                <span>SYSTEM ACTIVE</span>
+            </div>
+            <div class="status-item">
+                <span>TASK: <strong id="task-id">—</strong></span>
+            </div>
+            <div class="status-item">
+                <span>DAY: <strong id="day-counter">0</strong></span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="grid">
+            <div class="panel">
+                <div class="panel-header">
+                    SITUATION <span class="panel-header-icon">▸</span>
+                </div>
+                <div id="dependency-viz"></div>
+                <div class="legend">
+                    <div class="legend-item"><div class="legend-box" style="background: var(--red);"></div>HIGH BLOCKER</div>
+                    <div class="legend-item"><div class="legend-box" style="background: var(--amber);"></div>MEDIUM</div>
+                    <div class="legend-item"><div class="legend-box" style="background: var(--green);"></div>LOW</div>
+                    <div class="legend-item"><div class="legend-box" style="background: #555;"></div>DONE</div>
+                </div>
+                <div class="metric-grid" style="margin-top: 20px;">
+                    <div class="metric">
+                        <div class="metric-label">Completion</div>
+                        <div class="metric-value" id="completion">0%</div>
+                    </div>
+                    <div class="metric" style="border-left-color: var(--red);">
+                        <div class="metric-label">Days Left</div>
+                        <div class="metric-value" id="days-left" style="color: var(--red);">0</div>
+                    </div>
+                    <div class="metric" style="border-left-color: var(--amber);">
+                        <div class="metric-label">Blocked</div>
+                        <div class="metric-value" id="blocked" style="color: var(--amber);">0</div>
+                    </div>
+                    <div class="metric" style="border-left-color: var(--green);">
+                        <div class="metric-label">Budget</div>
+                        <div class="metric-value" id="budget" style="color: var(--green);">$0</div>
+                    </div>
+                </div>
+                <div style="margin-top: 25px;">
+                    <div class="panel-header" style="font-size: 14px;">TEAM STATUS</div>
+                    <div class="employee-list" id="employees"></div>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    DECISIONS <span class="panel-header-icon">▸</span>
+                </div>
+                <div id="critical-path"></div>
+                <div id="assignments"></div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    OUTCOMES <span class="panel-header-icon">▸</span>
+                </div>
+                <canvas id="reward-viz"></canvas>
+                <div class="metric-grid">
+                    <div class="metric" style="border-left-color: var(--green);">
+                        <div class="metric-label">Step</div>
+                        <div class="metric-value" id="step-reward" style="color: var(--green); font-size: 24px;">0.00</div>
+                    </div>
+                    <div class="metric" style="border-left-color: var(--cyan);">
+                        <div class="metric-label">Total</div>
+                        <div class="metric-value" id="total-reward" style="color: var(--cyan); font-size: 24px;">0.00</div>
+                    </div>
+                </div>
+                <div style="margin-top: 25px;">
+                    <div class="panel-header" style="font-size: 14px;">EVENT LOG</div>
+                    <div class="timeline" id="timeline">
+                        <div class="empty">Awaiting initialization...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <select class="task-select" id="task-select">
+            <option value="easy">EASY</option>
+            <option value="medium">MEDIUM</option>
+            <option value="hard">HARD</option>
+        </select>
+        <button class="btn btn-secondary" id="reset-btn">↻ RESET</button>
+        <button class="btn btn-primary" id="step-btn">▸ STEP</button>
+        <button class="btn btn-primary" id="auto-btn">⚡ AUTO</button>
+    </div>
+    
+    <script>
+        let state = null;
+        let task = 'easy';
+        let totalReward = 0;
+        let rewardChart = null;
+        let auto = false;
+        let autoInterval = null;
+        let rewardData = { complete: 0, critical: 0, unblock: 0, skill: 0, penalty: 0 };
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            document.getElementById('reset-btn').onclick = reset;
+            document.getElementById('step-btn').onclick = step;
+            document.getElementById('auto-btn').onclick = toggleAuto;
+            document.getElementById('task-select').onchange = (e) => { task = e.target.value; };
+        });
+        
+        async function reset() {
+            try {
+                stopAuto();
+                const res = await fetch('/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: task })
+                });
+                const data = await res.json();
+                state = data.observation;
+                totalReward = 0;
+                rewardData = { complete: 0, critical: 0, unblock: 0, skill: 0, penalty: 0 };
+                document.getElementById('task-id').textContent = task.toUpperCase();
+                document.getElementById('step-btn').disabled = false;
+                update();
+                clearTimeline();
+                log(state.day, '◉ MISSION START', 'complete');
+            } catch (e) {
+                log(0, '✗ ERROR: ' + e.message, 'warning');
+            }
+        }
+        
+        async function step() {
+            if (!state || state.done) return;
+            try {
+                const action = makeAction();
+                const res = await fetch('/step', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(action)
+                });
+                const data = await res.json();
+                state = data.observation;
+                const r = state.reward || 0;
+                totalReward += r;
+                updateRewardData(r);
+                update();
+                if (state.message) log(state.day, state.message, r > 0 ? 'complete' : 'warning');
+                if (state.done) {
+                    stopAuto();
+                    log(state.day, '◉ MISSION COMPLETE', 'complete');
+                    document.getElementById('step-btn').disabled = true;
+                }
+            } catch (e) {
+                stopAuto();
+                log(state?.day || 0, '✗ ERROR: ' + e.message, 'warning');
+            }
+        }
+        
+        function makeAction() {
+            if (!state) return { assignments: [], reprioritized_tasks: [], contingency_action: 'none' };
+            const assignments = [];
+            const avail = (state.employees || []).filter(e => e.available);
+            const tasks = (state.tasks || []).filter(t => 
+                t.status === 'todo' && 
+                t.dependencies.every(d => {
+                    const dt = state.tasks.find(x => x.id === d);
+                    return dt && dt.status === 'done';
+                })
+            );
+            avail.forEach(emp => {
+                const best = tasks.find(t => 
+                    !assignments.some(a => a.task_id === t.id) && 
+                    emp.skills.includes(t.required_skill)
+                ) || tasks.find(t => !assignments.some(a => a.task_id === t.id));
+                if (best) assignments.push({ employee_id: emp.id, task_id: best.id });
+            });
+            return { assignments, reprioritized_tasks: [], contingency_action: 'none' };
+        }
+        
+        function toggleAuto() {
+            auto = !auto;
+            const btn = document.getElementById('auto-btn');
+            if (auto) {
+                btn.textContent = '⏸ PAUSE';
+                btn.style.background = 'var(--red)';
+                autoInterval = setInterval(step, 2000);
+            } else {
+                stopAuto();
+            }
+        }
+        
+        function stopAuto() {
+            auto = false;
+            const btn = document.getElementById('auto-btn');
+            btn.textContent = '⚡ AUTO';
+            btn.style.background = '';
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+            }
+        }
+        
+        function update() {
+            if (!state) return;
+            document.getElementById('day-counter').textContent = state.day || 0;
+            document.getElementById('completion').textContent = ((state.project_completion || 0) * 100).toFixed(0) + '%';
+            document.getElementById('days-left').textContent = state.days_remaining || 0;
+            document.getElementById('blocked').textContent = state.blocked_tasks || 0;
+            document.getElementById('budget').textContent = '$' + (state.budget_remaining || 0).toFixed(0);
+            document.getElementById('step-reward').textContent = (state.reward || 0).toFixed(2);
+            document.getElementById('total-reward').textContent = totalReward.toFixed(2);
+            updateViz();
+            updateEmployees();
+            updateAssignments();
+            updateChart();
+        }
+        
+        function updateViz() {
+            const el = document.getElementById('dependency-viz');
+            el.innerHTML = '';
+            if (!state || !state.tasks) {
+                el.innerHTML = '<div class="empty">No data</div>';
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = el.clientWidth;
+            canvas.height = 320;
+            el.appendChild(canvas);
+            const ctx = canvas.getContext('2d');
+            const tasks = state.tasks;
+            const cols = 4;
+            const w = canvas.width;
+            const h = canvas.height;
+            tasks.forEach((t, i) => {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                const x = col * (w / cols) + (w / cols / 2);
+                const y = row * 70 + 40;
+                let downstream = 0;
+                const count = (id) => {
+                    const deps = tasks.filter(t2 => t2.dependencies.includes(id) && t2.status !== 'done');
+                    downstream += deps.length;
+                    deps.forEach(d => count(d.id));
+                };
+                count(t.id);
+                let color = '#00FF88';
+                if (t.status === 'done') color = '#555';
+                else if (downstream >= 2) color = '#FF4757';
+                else if (downstream >= 1) color = '#FFB84D';
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(x, y, 20, 0, Math.PI * 2);
+                ctx.fill();
+                if (t.status === 'in_progress') {
+                    ctx.strokeStyle = '#00D9FF';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 11px IBM Plex Mono';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(t.id.replace('task_', 'T'), x, y);
+                if (downstream > 0 && t.status !== 'done') {
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath();
+                    ctx.arc(x + 14, y - 14, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = color;
+                    ctx.font = 'bold 9px IBM Plex Mono';
+                    ctx.fillText(downstream.toString(), x + 14, y - 14);
+                }
+            });
+        }
+        
+        function updateEmployees() {
+            const el = document.getElementById('employees');
+            el.innerHTML = '';
+            if (!state || !state.employees) return;
+            state.employees.forEach(emp => {
+                const div = document.createElement('div');
+                div.className = 'employee';
+                const burnout = (emp.burnout || 0) * 100;
+                div.innerHTML = `
+                    <div>
+                        <div class="employee-name">${emp.id}</div>
+                        <div class="employee-skills">${(emp.skills || []).join(' • ')}</div>
+                    </div>
+                    <div class="burnout-indicator">
+                        <div class="burnout-fill" style="width: ${burnout}%"></div>
+                    </div>
+                `;
+                el.appendChild(div);
+            });
+        }
+        
+        function updateAssignments() {
+            const el = document.getElementById('assignments');
+            const crit = document.getElementById('critical-path');
+            if (!state || !state.tasks) {
+                el.innerHTML = '<div class="empty">No assignments</div>';
+                crit.innerHTML = '';
+                return;
+            }
+            const active = state.tasks.filter(t => t.status === 'in_progress');
+            if (active.length === 0) {
+                el.innerHTML = '<div class="empty">No active assignments</div>';
+            } else {
+                el.innerHTML = '';
+                active.forEach(t => {
+                    (t.assigned_employees || []).forEach(empId => {
+                        const emp = state.employees.find(e => e.id === empId);
+                        const match = emp && emp.skills.includes(t.required_skill);
+                        const div = document.createElement('div');
+                        div.className = 'assignment';
+                        div.innerHTML = `
+                            <div class="assignment-header">
+                                <div class="assignment-emp">${empId}</div>
+                                <div class="skill-badge ${match ? 'perfect' : 'partial'}">
+                                    ${match ? '◉ MATCH' : '△ PARTIAL'}
+                                </div>
+                            </div>
+                            <div class="assignment-task">→ ${t.id} (${t.required_skill})</div>
+                            <div class="assignment-task" style="margin-top: 5px;">${(t.remaining_effort || 0).toFixed(1)}d remaining</div>
+                        `;
+                        el.appendChild(div);
+                    });
+                });
+            }
+            const blockers = state.tasks.filter(t => {
+                if (t.status === 'done') return false;
+                const deps = state.tasks.filter(t2 => t2.dependencies.includes(t.id) && t2.status !== 'done');
+                return deps.length >= 2;
+            });
+            if (blockers.length > 0) {
+                crit.innerHTML = `<div class="critical-alert">⚠ CRITICAL PATH: ${blockers.length} high-impact blockers detected</div>`;
+            } else {
+                crit.innerHTML = '';
+            }
+        }
+        
+        function initChart() {
+            const ctx = document.getElementById('reward-viz').getContext('2d');
+            rewardChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['COMPLETE', 'CRITICAL', 'UNBLOCK', 'SKILL', 'PENALTY'],
+                    datasets: [{
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: ['#00FF88', '#FF4757', '#00D9FF', '#FFB84D', '#555']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#2A3447' }, ticks: { color: '#8B93B0' } },
+                        x: { grid: { display: false }, ticks: { color: '#8B93B0', font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+        
+        function updateRewardData(r) {
+            if (r > 2) {
+                rewardData.complete += 2;
+                rewardData.critical += Math.max(0, r - 2);
+            } else if (r > 0) {
+                rewardData.complete += r * 0.5;
+                rewardData.unblock += r * 0.3;
+                rewardData.skill += r * 0.2;
+            } else {
+                rewardData.penalty += Math.abs(r);
+            }
+        }
+        
+        function updateChart() {
+            if (!rewardChart) return;
+            rewardChart.data.datasets[0].data = [
+                rewardData.complete,
+                rewardData.critical,
+                rewardData.unblock,
+                rewardData.skill,
+                -rewardData.penalty
+            ];
+            rewardChart.update();
+        }
+        
+        function log(day, msg, type = 'complete') {
+            const tl = document.getElementById('timeline');
+            const empty = tl.querySelector('.empty');
+            if (empty) empty.remove();
+            const div = document.createElement('div');
+            div.className = `timeline-event ${type}`;
+            div.innerHTML = `
+                <div class="timeline-day">DAY ${day}</div>
+                <div class="timeline-message">${msg}</div>
+            `;
+            tl.insertBefore(div, tl.firstChild);
+            while (tl.children.length > 20) tl.removeChild(tl.lastChild);
+        }
+        
+        function clearTimeline() {
+            document.getElementById('timeline').innerHTML = '';
+        }
+    </script>
+</body>
+</html>

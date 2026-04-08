@@ -247,3 +247,346 @@ uv run python -m pytest test_main.py -v
 ```bash
 openenv push --repo-id your-username/adaptive-project-manager
 ```
+---
+title: Adaptive Project Manager Environment
+emoji: 📊
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+tags:
+  - openenv
+  - rl
+  - project-management
+---
+
+<div align="center">
+
+# 🎯 Adaptive Project Manager
+
+**An OpenEnv environment where AI learns to manage software projects under uncertainty.**
+
+[![OpenEnv](https://img.shields.io/badge/OpenEnv-Compatible-blue)](https://github.com/openenv)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-BSD--3-green.svg)](LICENSE)
+
+[Quick Start](#-quick-start) • [Architecture](#-architecture) • [Reward System](#-reward-system) • [Tasks](#-tasks) • [API](#-api-reference)
+
+</div>
+
+---
+
+## 💡 The Problem
+
+Software projects fail for predictable reasons: critical work discovered late, overloaded teams, shifting priorities, cascading delays. Traditional tools track status—they don't help **decide what to do next**.
+
+This environment asks: **Can an agent learn to manage a project better than fixed rules?**
+
+> 📖 *Full problem analysis: [Problem.md](Problem.md)*
+
+---
+
+## 🏗️ Architecture
+
+```
+┌──────────────────┐     ┌──────────────────┐     ┌──────────────────────┐
+│  Agent / Policy  │ ──► │  OpenEnv API     │ ──► │  Env Orchestrator    │
+│  chooses action  │     │  reset / step    │     │  controls step order │
+└────────┬─────────┘     └────────┬─────────┘     └──────────┬───────────┘
+         │                        │                          │
+         │                        ▼                          ▼
+         │               ┌─────────────────┐         ┌───────────────┐
+         │               │  ProjectState   │ ◄─────► │  Task Engine  │
+         │               │  (truth source) │         │  dependencies │
+         │               │                 │         │  effort calc  │
+         │               │  • day, budget  │         └───────────────┘
+         │               │  • tasks [ ]    │         ┌───────────────┐
+         │               │  • employees [ ]│ ◄─────► │ Employee Eng  │
+         │               │  • risks [ ]    │         │ burnout/skills│
+         │               └────────┬────────┘         └───────────────┘
+         │                        │                  ┌───────────────┐
+         │                        └────────────────► │ Reward Engine │
+         │                                           │ + Grader      │
+         ▼                                           └───────────────┘
+┌──────────────────┐
+│ Observation Out  │ ◄── (obs, reward, done)
+└──────────────────┘
+```
+
+**One step = one project day.** The orchestrator executes in deterministic order: events → assignments → work → burnout → budget → reward → termination.
+
+> 📖 *Full system design: [Architecture.md](Architecture.md)*
+
+---
+
+## 🎮 Quick Start
+
+### Prerequisites
+```bash
+git clone <repo-url> && cd adaptive-project-manager
+uv sync  # or: pip install -e .
+```
+
+### Run Inference
+```bash
+cp .env.example .env  # Configure HF_TOKEN, API_BASE_URL, MODEL_NAME
+uv run python inference.py
+```
+
+### Launch Interactive Dashboard
+```bash
+# Start the server
+uv run uvicorn server.app:app --host 0.0.0.0 --port 8000
+
+# Open in browser
+# → http://localhost:8000/dashboard
+```
+
+**🎯 Mission Control Dashboard** - A NASA-inspired command center showing:
+- **Live dependency graph** with critical path visualization
+- **Real-time reward breakdown** (completion, critical path bonus, skill matching)
+- **Team burnout meters** and skill-aware assignments
+- **Event timeline** with color-coded outcomes
+- **Auto-play mode** for hands-free demonstration
+
+### Local Testing
+```python
+from server.hustlers_env_environment import AdaptiveProjectManagerEnv
+from models import ProjectAction, Assignment
+
+env = AdaptiveProjectManagerEnv()
+obs = env.reset(task_id="easy")
+
+while not obs.done:
+    action = ProjectAction(
+        assignments=[Assignment(employee_id="emp_1", task_id="task_1")],
+        contingency_action="none"
+    )
+    obs = env.step(action)
+    print(f"Day {obs.day}: {obs.project_completion:.0%} complete")
+```
+
+---
+
+## 💰 Reward System
+
+The reward shapes **realistic PM behavior**—not just task completion.
+
+### Step Reward
+
+```
+R = 5·Ccrit + 2·Cnorm + 1.5·Dblocked + 0.5·U + 0.5·M − 0.25 − 3·Overdue − Pburnout − Preassign
+```
+
+| Component | Value | Purpose |
+|-----------|-------|---------|
+| Complete critical task | **+5.0** | Prioritize critical path |
+| Complete normal task | **+2.0** | Reward progress |
+| **Critical path bonus** | **+1.5 × downstream** | 🆕 Clear blockers first |
+| Unblock task | **+0.5** | Create options |
+| Skill match | **+0.5** | Good assignments |
+| Time cost | **−0.25** | Encourage speed |
+| Overdue critical | **−3.0** | Penalize delays |
+| Burnout | **−(avg−0.6)×2** | Protect team |
+| Reassignment | **−0.5** | Discourage thrashing |
+
+### 🆕 Critical Path Bonus
+
+When task X completes: `bonus = downstream_blocked(X) × 1.5`
+
+```
+Example: task_1 blocks task_3, which blocks task_5
+         Complete task_1 → downstream = 2 → bonus = +3.0
+```
+
+**Teaches: clear blockers first.**
+
+### Final Score
+
+```
+Score = 0.35·Completion + 0.25·Deadline + 0.15·Budget + 0.15·TeamHealth + 0.10·Satisfaction
+```
+
+> 📖 *Reward rationale & edge cases: [Reward_Design.md](Reward_Design.md)*
+
+---
+
+## 📋 Tasks
+
+Three difficulty levels with **deterministic seeds** for reproducible evaluation:
+
+| Task | Scenario | Team | Tasks | Days | Key Challenge |
+|------|----------|------|-------|------|---------------|
+| `easy` | Web Launch | 3 | 5 | 12 | Basic dependencies |
+| `medium` | MVP Crunch | 4 | 9 | 18 | Illness day 6, scope change day 10 |
+| `hard` | Migration | 5 | 14+ | 25 | Multiple overlapping crises |
+
+### Expected Scores
+
+| Policy | Easy | Medium | Hard |
+|--------|------|--------|------|
+| Random | 0.15–0.30 | 0.10–0.20 | 0.05–0.15 |
+| Heuristic | 0.80–0.90 | 0.55–0.70 | 0.35–0.50 |
+| **Strong Agent** | **0.95+** | **0.75–0.85** | **0.60–0.75** |
+
+> 📖 *Task specs & events: [Tasks.md](Tasks.md)*
+
+---
+
+## 📡 API Reference
+
+### Action
+
+```python
+class ProjectAction:
+    assignments: List[Assignment]    # Who works on what
+    reprioritized_tasks: List[str]  # Escalate to critical
+    contingency_action: Literal[
+        "none",                      # Normal
+        "request_overtime",          # +20% productivity, +burnout
+        "hire_contractor",           # Add capacity, $$$
+        "defer_low_priority_work"    # Focus critical path
+    ]
+```
+
+### Observation
+
+```python
+class ProjectObservation:
+    day: int                  # Current day
+    days_remaining: int       # Until deadline
+    budget_remaining: float   # Dollars left
+    project_completion: float # 0.0–1.0
+    blocked_tasks: int        # Cannot proceed
+    overdue_tasks: int        # Past deadline
+    average_burnout: float    # Team health
+    tasks: List[TaskState]
+    employees: List[EmployeeState]
+    risks: List[RiskState]
+    message: str              # Recent events
+    done: bool
+    reward: float
+```
+
+### Task & Employee State
+
+```python
+class TaskState:
+    id: str
+    status: Literal["todo", "in_progress", "blocked", "done"]
+    priority: Literal["low", "medium", "high", "critical"]
+    required_skill: str
+    remaining_effort: float
+    dependencies: List[str]
+    is_critical_path: bool
+
+class EmployeeState:
+    id: str
+    skills: List[str]
+    available: bool
+    burnout: float  # 0.0–1.0, >0.8 = 50% productivity
+```
+
+> 📖 *Complete state/action design: [State_Actions.md](State_Actions.md)*
+
+---
+
+## ⚙️ Mechanics
+
+### Productivity
+
+```
+productivity = Σ(skill_scores) × coordination_factor
+coordination_factor = 1 / (1 + 0.15 × (n_assigned - 1))
+```
+
+| Skill Match | Score | Team Size | Output |
+|-------------|-------|-----------|--------|
+| Exact | 1.0 | 1 | 1.00× |
+| Partial | 0.5 | 2 | 1.74× |
+| None | 0.0 | 3 | 2.31× |
+
+### Burnout
+
+```
+burnout += 0.15 × workload − 0.05 × rest
+if overtime: burnout += 0.10
+if burnout > 0.8: productivity × 0.5
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+uv run python -m pytest test_main.py -v          # Unit tests
+uv run python test_enhancements.py               # Feature tests
+```
+
+---
+
+## 🤖 Optional: RL Training
+
+For researchers (not required for OpenEnv):
+
+```bash
+uv add gymnasium stable-baselines3 sb3-contrib
+uv run python train_maskable_ppo.py --task easy --timesteps 100000
+```
+
+**Gym Wrapper Features:**
+- Multi-Discrete: `[employee, task, contingency]`
+- Action masking for MaskablePPO
+- Prevents invalid actions (busy employees, blocked tasks)
+
+---
+
+## 🐳 Docker
+
+```bash
+docker build -t adaptive-project-manager:latest .
+docker run -p 8000:8000 adaptive-project-manager:latest
+openenv push --repo-id your-username/adaptive-project-manager
+```
+
+---
+
+## 📁 Structure
+
+```
+├── models.py                    # Pydantic models
+├── inference.py                 # LLM inference
+├── server/
+│   ├── hustlers_env_environment.py  # Core env
+│   └── gym_wrapper.py           # RL wrapper
+├── tasks/{easy,medium,hard}.py  # Task configs
+├── graders/                     # Scoring logic
+├── Architecture.md              # System design
+├── Reward_Design.md             # Reward rationale
+├── State_Actions.md             # API details
+├── Tasks.md                     # Task specs
+└── CHANGELOG.md                 # Version history
+```
+
+---
+
+## 📊 Evaluation Alignment
+
+| Criterion | Weight | Implementation |
+|-----------|--------|----------------|
+| **Real-world utility** | 30% | Models actual PM decisions |
+| **Reward quality** | 25% | Dense signals, critical path bonus |
+| **Task & grader** | 25% | 3 tasks, deterministic seeds |
+| **Environment design** | 20% | Clean API, skill matching |
+
+---
+
+<div align="center">
+
+**Built for the OpenEnv Hackathon** 🚀
+
+[Architecture](Architecture.md) • [Rewards](Reward_Design.md) • [Tasks](Tasks.md) • [Changelog](CHANGELOG.md)
+
+</div>
