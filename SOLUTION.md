@@ -1,6 +1,6 @@
 # Adaptive Project Manager: The Complete Solution
 
-This document summarizes how the `AdaptiveProjectManagerEnv` environment solves the OpenEnv Hackathon requirements and why it stands out as a Grand Prize Contender.
+This document summarizes how the `AdaptiveProjectManagerEnv` environment solves the OpenEnv Hackathon requirements and provides a robust benchmark for sequential decision-making.
 
 ## Overview
 

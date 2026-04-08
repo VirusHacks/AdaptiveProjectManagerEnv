@@ -439,6 +439,6 @@ All graders verified for bound compliance: scores always in [0.0, 1.0]. Determin
 
 **Built for the OpenEnv Hackathon**
 
-[Problem](Problem.md) · [Architecture](Architecture.md) · [Rewards](Reward_Design.md) · [Tasks](Tasks.md) · [Results](RESULTS.md)
+[Problem](Problem.md) · [Architecture](Architecture.md) · [Rewards](Reward_Design.md) · [Tasks](Tasks.md) · [Results](/docs/RESULTS.md)
 
 </div>

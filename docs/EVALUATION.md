@@ -300,7 +300,7 @@ The environment stands as a pristine, frontier-challenging benchmark.
 - Impeccable grading, baseline testing, and design philosophy.
 - Hard task baseline of 0.30 pushes actual boundaries of RL solving.
 
-### Estimated placement: **Top 1-5% (Grand Prize Contender)**
+### Estimated placement: **High-Caliber Submission**
 
 ---
 
@@ -312,6 +312,6 @@ The environment stands as a pristine, frontier-challenging benchmark.
 - Practical real-world application with high strategic ceiling
 
 **Expected outcome:**
-- 🎯 Grand Prize Contender
+- 🎯 Comprehensive OpenEnv Implementation
 
 **The project is flawlessly production-ready and incredibly competitive.**
