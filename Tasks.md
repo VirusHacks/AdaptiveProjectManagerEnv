@@ -213,9 +213,9 @@ Local heuristics should not solve this task reliably.
 | Property | Value |
 | --- | --- |
 | Employees | 5 |
-| Tasks | 14 |
-| Deadline | 25 days |
-| Budget | 220 units |
+| Tasks | 15 (+ mutually exclusive branch) |
+| Deadline | 22 days |
+| Budget | 130000 units |
 | Max Episode Length | 25 steps |
 | Random Seed | 9001 |
 
@@ -231,12 +231,13 @@ Local heuristics should not solve this task reliably.
 
 The `contractor` is initially unavailable and must be hired via contingency action.
 
-### Hard-Mode Features
+### Hard-Mode God-Tier Features
 
-- multiple long-running tasks,
+- **Mutually Exclusive Branching (Buy vs Build)**: Task 8 and Task 15 cancel each other out.
+- **The Mythical Man-Month**: 2+ developers on a task causes coordination slowdowns.
+- **Pair-Programming Immunity**: 2+ developers on a task grants zero bugs spawned from Tech Debt.
 - hidden critical-path dependencies,
-- overlapping disruptions,
-- optional scope that may need to be dropped,
+- overlapping disruptions and time-lagged Technical Debt bugs,
 - high burnout risk with downstream productivity impact.
 
 ### Major Disruptions
@@ -272,9 +273,9 @@ Agents must plan several steps ahead rather than maximize immediate reward.
 
 | Policy | Expected Score |
 | --- | --- |
-| Random | 0.05–0.15 |
-| Heuristic Baseline | 0.35–0.50 |
-| Strong Agent | 0.60–0.75 |
+| Random | 0.00–0.05 |
+| Heuristic Baseline | 0.13 |
+| Strong Agent | 0.30–0.50 |
 
 ---
 

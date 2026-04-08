@@ -26,15 +26,17 @@ class TaskState(BaseModel):
     priority: Literal["low", "medium", "high", "critical"] = Field(
         default="medium", description="Task priority level"
     )
-    status: Literal["todo", "in_progress", "blocked", "done"] = Field(
-        default="todo", description="Current task status"
-    )
     required_skill: str = Field(..., description="Skill required to complete this task")
-    remaining_effort: float = Field(default=1.0, description="Remaining effort in person-days")
-    original_effort: float = Field(default=1.0, description="Original effort estimate")
-    dependencies: List[str] = Field(default_factory=list, description="IDs of tasks this depends on")
+    original_effort: float = Field(..., description="Estimated effort in person-days")
+    remaining_effort: float = Field(..., description="Remaining effort to complete")
+    status: Literal["todo", "in_progress", "blocked", "done", "cancelled"] = Field(
+        default="todo", description="Current status"
+    )
     is_critical_path: bool = Field(default=False, description="Whether task is on critical path")
-    assigned_employees: List[str] = Field(default_factory=list, description="IDs of assigned employees")
+    assigned_employees: List[str] = Field(default_factory=list, description="IDs of currently assigned employees")
+    mutually_exclusive_with: Optional[str] = Field(default=None, description="Task ID that this task bypasses/cancels if completed (Buy vs Build)")
+    fixed_cost: float = Field(default=0.0, description="Upfront financial cost required to complete this task (e.g. software licenses)")
+    dependencies: List[str] = Field(default_factory=list, description="IDs of tasks this depends on")
     deadline_day: Optional[int] = Field(default=None, description="Deadline day (if any)")
 
 
@@ -104,7 +106,8 @@ class ProjectAction(Action):
         "none",
         "request_overtime",
         "hire_contractor",
-        "defer_low_priority_work"
+        "defer_low_priority_work",
+        "request_emergency_funding"
     ] = Field(default="none", description="Contingency action to take")
 
 

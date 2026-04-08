@@ -16,10 +16,13 @@ This project introduces `AdaptiveProjectManagerEnv`, an OpenEnv-compatible reinf
 
 The environment models:
 
-- tasks with dependencies,
+- tasks with DAG dependencies and mutually exclusive branching (Buy vs Build),
 - employees with different skills,
-- budget and deadline limits,
-- workload and burnout,
+- budget, deadline limits, and fixed-cost contingency options,
+- workload, burnout collapse, and coordination taxes (The Mythical Man-Month),
+- task switching context cost (Ramp-up penalties),
+- effort estimation uncertainty,
+- technical debt and deferred bugs,
 - random project disruptions.
 
 The goal is to learn better day-to-day project decisions over time.

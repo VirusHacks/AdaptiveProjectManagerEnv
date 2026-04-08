@@ -398,6 +398,12 @@ class AdaptiveProjectManagerEnv(Environment):
                                     emp.assigned_task_id = None
                         task.assigned_employees = []
                 self._messages.append("Low priority work deferred to focus on critical tasks")
+                
+        elif contingency == "request_emergency_funding":
+            # Massive budget influx, but permanently damages stakeholder satisfaction
+            ps.budget_total += 20000.0
+            ps.stakeholder_satisfaction = max(0.0, ps.stakeholder_satisfaction - 0.15)
+            self._messages.append("Emergency funding requested - Budget +$20k, but Stakeholders are unhappy!")
 
     def _process_reprioritization(self, task_ids: List[str]):
         """Process task reprioritization."""
@@ -469,6 +475,11 @@ class AdaptiveProjectManagerEnv(Environment):
                         f"Task '{task.name}' turns out to be {direction} than estimated "
                         f"(effort: {task.original_effort:.1f} -> {task.remaining_effort:.1f})"
                     )
+                
+                # Apply fixed cost upfront if any
+                if task.fixed_cost > 0:
+                    ps.budget_spent += task.fixed_cost
+                    self._messages.append(f"Paid fixed cost of ${task.fixed_cost:,.2f} to begin task '{task.name}'")
             
             task.status = "in_progress"
             emp.workload = 1.0  # Full workload when assigned
@@ -513,10 +524,17 @@ class AdaptiveProjectManagerEnv(Environment):
         """
         Check if a completed task was rushed or done with poor skill match.
         If so, schedule a bug task to spawn later via technical debt.
+        Immunity granted if Pair Programming (2+ developers) is utilized!
         """
         ps = self._project_state
         
         if not task.assigned_employees:
+            return
+            
+        # Pair Programming Immunity (God-Tier Feature)
+        # Assigning multiple people to a task nullifies tech debt completely
+        # as a strategic defense mechanism to counter the coordination tax.
+        if len(task.assigned_employees) >= 2:
             return
             
         # Calculate quality based on skill match
@@ -612,6 +630,20 @@ class AdaptiveProjectManagerEnv(Environment):
                 if ps.task_id in ("medium", "hard"):
                     self._check_task_quality(task)
                 
+                # Check for mutually exclusive tasks (Buy vs Build)
+                if task.mutually_exclusive_with:
+                    mx_task = next((t for t in ps.tasks if t.id == task.mutually_exclusive_with), None)
+                    if mx_task and mx_task.status != "done" and mx_task.status != "cancelled":
+                        mx_task.status = "cancelled"
+                        mx_task.remaining_effort = 0
+                        mx_task.assigned_employees = []
+                        self._messages.append(f"Branching Decision: '{task.name}' completed. Autocanceling alternative '{mx_task.name}'.")
+                        
+                        # Strip the cancelled task from all downstream dependencies
+                        for other in ps.tasks:
+                            if mx_task.id in other.dependencies:
+                                other.dependencies.remove(mx_task.id)
+                
                 # Free up assigned employees
                 for emp_id in task.assigned_employees:
                     for emp in ps.employees:
@@ -624,7 +656,7 @@ class AdaptiveProjectManagerEnv(Environment):
                 # Check for newly unblocked tasks
                 for other_task in ps.tasks:
                     if other_task.status == "blocked" or (other_task.status == "todo" and other_task.dependencies):
-                        if task.id in other_task.dependencies:
+                        if task.id in other_task.dependencies or (task.mutually_exclusive_with and task.mutually_exclusive_with in other_task.dependencies):
                             if not self._has_unmet_dependencies(other_task):
                                 if other_task.status == "blocked":
                                     other_task.status = "todo"

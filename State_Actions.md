@@ -109,6 +109,8 @@ class TaskState(BaseModel):
 | `status` | Current task status |
 | `required_skill` | Skill needed for efficient completion |
 | `remaining_effort` | Work remaining (in day-equivalent effort units) |
+| `fixed_cost` | Fixed financial cost to begin execution (e.g., license purchase) |
+| `mutually_exclusive_with` | Alternative branch task ID to auto-cancel if this completes |
 | `dependencies` | Upstream tasks that must complete first |
 | `is_critical_path` | Whether delay directly affects deadline |
 
@@ -177,13 +179,13 @@ $$
 c(n) = \frac{1}{1 + 0.15(n-1)}
 $$
 
-This models diminishing returns from coordination overhead.
+This models diminishing returns from coordination overhead (The Mythical Man-Month). However, utilizing multiple developers gives **Pair-Programming Immunity**, automatically negating all Technical Debt bugs for that task.
 
-| Employees Assigned | Effective Productivity |
-| --- | --- |
-| 1 | 1.00 |
-| 2 | 1.74 |
-| 3 | 2.31 |
+| Employees Assigned | Effective Productivity | Tech Debt Bugs |
+| --- | --- | --- |
+| 1 | 1.00 | Possible |
+| 2 | 1.60 | Zero |
+| 3 | 1.80 | Zero |
 
 This creates a key planning decision:
 
@@ -205,7 +207,8 @@ class Action(BaseModel):
         "none",
         "request_overtime",
         "hire_contractor",
-        "defer_low_priority_work"
+        "defer_low_priority_work",
+        "request_emergency_funding"
     ]
 ```
 ```
@@ -252,6 +255,7 @@ Contingency actions model strategic interventions with delayed consequences.
 | `request_overtime` | Increase short-term productivity; increase burnout risk |
 | `hire_contractor` | Add temporary capacity; reduce budget |
 | `defer_low_priority_work` | Reduce optional scope pressure; may lower stakeholder satisfaction |
+| `request_emergency_funding` | Grants +$20,000 instantly but slashes stakeholder satisfaction heavily |
 
 These are high-impact choices and often dominate long-term return.
 

@@ -176,14 +176,16 @@ def get_tasks() -> List[TaskState]:
         ),
         TaskState(
             id="task_8",
-            name="Security Implementation",
+            name="Build Auth System (In-House)",
             priority="critical",
             status="todo",
             required_skill="security",
-            remaining_effort=3.0,
-            original_effort=3.0,
+            remaining_effort=8.0,
+            original_effort=8.0,
             dependencies=["task_6"],
             is_critical_path=True,
+            mutually_exclusive_with="task_15",
+            fixed_cost=0.0,
         ),
         TaskState(
             id="task_9",
@@ -215,7 +217,7 @@ def get_tasks() -> List[TaskState]:
             required_skill="qa",
             remaining_effort=4.0,
             original_effort=4.0,
-            dependencies=["task_6", "task_7", "task_8"],
+            dependencies=["task_6", "task_7", "task_8", "task_15"],
             is_critical_path=True,
         ),
         TaskState(
@@ -250,6 +252,19 @@ def get_tasks() -> List[TaskState]:
             original_effort=3.0,
             dependencies=["task_9", "task_10", "task_11", "task_12"],
             is_critical_path=True,
+        ),
+        TaskState(
+            id="task_15",
+            name="Buy Auth API (Vendor)",
+            priority="critical",
+            status="todo",
+            required_skill="api",
+            remaining_effort=1.0,
+            original_effort=1.0,
+            dependencies=["task_6"],
+            is_critical_path=True,
+            mutually_exclusive_with="task_8",
+            fixed_cost=15000.0,
         ),
     ]
 

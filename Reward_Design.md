@@ -481,6 +481,17 @@ Defense:
 
 ---
 
+### Risk 6: Throwing Bodies at the Problem (The Mythical Man-Month)
+
+An agent may try to assign everyone to the same task to finish it instantly, avoiding deadlines.
+
+Defense:
+
+- **Coordination Tax**: Assigning 2+ people to a task causes diminishing returns (productivity per dev drops to 80% or 60%).
+- **Counter-play**: If an agent accepts this tax and uses *Pair Programming*, the environment guarantees zero bugs are spawned from Technical Debt, offering a brilliant strategic tradeoff.
+
+---
+
 ## Discount Factor
 
 The environment is designed for long-horizon reasoning.

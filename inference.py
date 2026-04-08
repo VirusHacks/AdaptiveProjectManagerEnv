@@ -434,6 +434,28 @@ async def run_task(client: OpenAI, env, task_id: str) -> float:
         print(f"[ERROR] {e}", flush=True)
         final_score = 0.0
     
+    # Generate CEO Post-Mortem Email
+    if 'obs' in locals() and obs is not None:
+        burnout = obs.average_burnout
+        budget = obs.budget_remaining
+        completion = obs.project_completion
+        
+        email_body = ""
+        if completion >= 0.99 and burnout < 0.5 and budget > 0:
+            email_body = "Brilliant work. You delivered the project, kept the team sane, and stayed under budget. I'm promoting you."
+        elif completion >= 0.99 and burnout >= 0.8:
+            email_body = "The product shipped, but half the engineering team just quit because of 90% burnout. We cannot sustain this management style."
+        elif completion < 0.5:
+            email_body = "Utter failure. You barely finished half the project. We are losing the client."
+        elif budget < 0:
+            email_body = "You delivered it, but you completely blew past the budget. Finance is furious."
+        else:
+            email_body = "The project finished with acceptable margins, but there's room for improvement in your resource allocation."
+            
+        print("\n=== ✉️ NEW MESSAGE FROM CEO ===")
+        print(email_body)
+        print("===============================\n", flush=True)
+
     log_end(task=task_id, score=final_score)
     return final_score
 
