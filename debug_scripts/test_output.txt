@@ -1,0 +1,9 @@
+CHANGE 4: Technical Debt
+TASK      STEPS  DONE   SCORE   BURNOUT  BUG_SPAWNED
+-------------------------------------------------------
+easy          9  5/ 5   0.911   0.417    False
+medium       17  7/ 9   0.650   0.312    False
+hard         21  10/16   0.306   0.700    False
+
+Ordering correct: True
+All in [0,1]: True

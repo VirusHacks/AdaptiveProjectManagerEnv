@@ -49,6 +49,7 @@ class EmployeeState(BaseModel):
     burnout: float = Field(default=0.0, description="Current burnout level (0-1)")
     productivity_modifier: float = Field(default=1.0, description="Productivity modifier")
     unavailable_until: Optional[int] = Field(default=None, description="Day when employee becomes available again")
+    days_on_current_task: int = Field(default=0, description="Days spent on current task (0 = just assigned, used for ramp-up cost)")
 
 
 class RiskState(BaseModel):

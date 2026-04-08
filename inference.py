@@ -59,27 +59,33 @@ MAX_TOKENS = 500
 
 SYSTEM_PROMPT = textwrap.dedent("""
     You are a project manager AI for a software development project.
-    Your goal is to complete all tasks before the deadline while keeping the team healthy.
-    
+    Your goal is to maximize the final project score by completing tasks before the deadline
+    while managing budget, team health, and stakeholder satisfaction.
+
     You must respond with a valid JSON action with this structure:
     {
         "assignments": [{"employee_id": "emp_X", "task_id": "task_Y"}, ...],
         "reprioritized_tasks": [],
         "contingency_action": "none"
     }
-    
-    Rules:
-    1. Assign employees to tasks matching their skills for best productivity
-    2. Don't assign unavailable employees
-    3. Don't assign to tasks with unmet dependencies (blocked tasks)
-    4. Use contingency_action wisely:
-       - "request_overtime": increases productivity but causes burnout
-       - "hire_contractor": adds a versatile employee but costs more
-       - "defer_low_priority_work": blocks low priority tasks to focus on critical ones
-       - "none": no special action
-    5. Watch burnout levels - employees with burnout > 0.8 work at 50% capacity
-    6. Prioritize critical path tasks
-    
+
+    STRATEGY GUIDELINES:
+    1. DEPENDENCY CHAINS: Always check task dependencies. Prioritize tasks that unblock
+       the most downstream work. Completing a blocker is worth more than completing a leaf task.
+    2. SKILL MATCHING: Assign employees whose skills exactly match the task's required_skill.
+       Exact match = 1.0 productivity, partial = 0.5, mismatch = 0.0.
+    3. CRITICAL PATH: Tasks marked is_critical_path=true determine the deadline. Focus on these.
+    4. BURNOUT MANAGEMENT: Employees with burnout > 0.8 work at 50% capacity.
+       Rotate employees or leave some idle to recover. Burnout above 0.6 triggers penalties.
+    5. CONTINGENCY TIMING:
+       - "request_overtime": Use ONLY when behind schedule AND average burnout < 0.5
+       - "hire_contractor": Use early if team is small and many tasks remain
+       - "defer_low_priority_work": Use when deadline is tight to focus on critical path
+       - "none": Default. Don't waste contingency actions when not needed.
+    6. LONG-TERM THINKING: Overtime today causes burnout tomorrow. A burned-out team on day 15
+       is worse than a slightly delayed team on day 8.
+    7. Don't assign unavailable employees. Don't assign to blocked or done tasks.
+
     Reply ONLY with the JSON action, no other text.
 """).strip()
 
@@ -189,39 +195,85 @@ def get_heuristic_action(
     Fallback heuristic policy.
     
     Strategy:
-    - Pick highest-priority unblocked task
-    - Assign best matching available employee
-    - Use contingency actions if behind schedule
+    - Prioritize tasks that unblock the most downstream work
+    - Assign best skill-matching available employee
+    - Also reassign idle employees sitting on tasks that have other workers
+    - Use contingency actions strategically based on schedule gap
     """
     assignments = []
+    assigned_emp_ids = set()
     
-    # Sort tasks by priority (critical > high > medium > low) and critical path
+    # Build a map of how many downstream tasks each task unblocks
+    task_map = {t.id: t for t in tasks}
+    downstream_count = {}
+    for t in tasks:
+        count = 0
+        for other in tasks:
+            if t.id in other.dependencies and other.status != "done":
+                count += 1
+        downstream_count[t.id] = count
+    
+    # Sort tasks: critical path first, then by downstream unlock value, then priority
     priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
     
-    available_tasks = [
-        t for t in tasks 
-        if t.status in ["todo", "in_progress"] 
-        and t.status != "blocked"
-    ]
+    # Filter to workable tasks (not done, not blocked)
+    available_tasks = []
+    for t in tasks:
+        if t.status in ["done", "blocked"]:
+            continue
+        # Check if dependencies are met
+        deps_met = all(
+            task_map.get(dep_id) and task_map[dep_id].status == "done"
+            for dep_id in t.dependencies
+        )
+        if deps_met or t.status == "in_progress":
+            available_tasks.append(t)
+    
     available_tasks.sort(key=lambda t: (
         priority_order.get(t.priority, 4),
         not t.is_critical_path,
+        -downstream_count.get(t.id, 0),  # More downstream = higher priority
         t.remaining_effort
     ))
     
-    # Get available employees not assigned yet
-    available_employees = [e for e in employees if e.available and e.assigned_task_id is None]
+    # Get available employees: unassigned first, then those on lower-priority work
+    unassigned_employees = [
+        e for e in employees
+        if e.available and e.assigned_task_id is None
+    ]
+    
+    # Also consider employees currently on low-priority tasks that could be reassigned
+    # to higher-priority work (only if their current task has other workers or is low priority)
+    reassignable_employees = []
+    for e in employees:
+        if not e.available or e.assigned_task_id is None:
+            continue
+        current_task = task_map.get(e.assigned_task_id)
+        if current_task and current_task.priority in ["low", "medium"] and current_task.status == "in_progress":
+            # Only reassign if there's higher-priority work needing their skill
+            has_better_work = any(
+                t.required_skill in e.skills
+                and priority_order.get(t.priority, 4) < priority_order.get(current_task.priority, 4)
+                for t in available_tasks
+                if t.id != e.assigned_task_id
+            )
+            if has_better_work:
+                reassignable_employees.append(e)
+    
+    all_available = unassigned_employees + reassignable_employees
     
     # Assign employees to tasks
     for task in available_tasks:
-        if not available_employees:
+        if not all_available:
             break
         
         # Find best matching employee
         best_emp = None
         best_score = -1
         
-        for emp in available_employees:
+        for emp in all_available:
+            if emp.id in assigned_emp_ids:
+                continue
             score = 0
             if task.required_skill in emp.skills:
                 score = 10  # Exact skill match
@@ -230,6 +282,9 @@ def get_heuristic_action(
             
             # Prefer less burned out employees
             score -= emp.burnout * 5
+            
+            # Bonus for unblocking downstream tasks
+            score += downstream_count.get(task.id, 0) * 2
             
             if score > best_score:
                 best_score = score
@@ -240,12 +295,12 @@ def get_heuristic_action(
                 employee_id=best_emp.id,
                 task_id=task.id
             ))
-            available_employees.remove(best_emp)
+            assigned_emp_ids.add(best_emp.id)
     
     # Determine contingency action
     contingency = "none"
     
-    # Calculate progress
+    # Calculate schedule gap
     critical_tasks = [t for t in tasks if t.is_critical_path]
     critical_done = sum(1 for t in critical_tasks if t.status == "done")
     critical_total = len(critical_tasks)
@@ -254,8 +309,8 @@ def get_heuristic_action(
     actual_progress = critical_done / critical_total if critical_total > 0 else 1.0
     
     if actual_progress < expected_progress - 0.2:
-        # We're behind schedule
-        if average_burnout < 0.5:
+        # Behind schedule
+        if average_burnout < 0.4:  # Stricter threshold than before
             contingency = "request_overtime"
         elif len(employees) < 5:
             contingency = "hire_contractor"

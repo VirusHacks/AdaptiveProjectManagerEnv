@@ -55,6 +55,44 @@ class AdaptiveProjectManagerEnv(Environment):
 
     SUPPORTS_CONCURRENT_SESSIONS: bool = True
 
+    # --- Configurable Constants ---
+    # Burnout mechanics
+    BURNOUT_WORK_RATE = 0.15           # Burnout increase per day of work
+    BURNOUT_RECOVERY_RATE = 0.05       # Burnout decrease per day of rest
+    BURNOUT_OVERTIME_RATE = 0.10       # Additional burnout from overtime
+    BURNOUT_PRODUCTIVITY_THRESHOLD = 0.8  # Burnout level that triggers productivity penalty
+    BURNOUT_PRODUCTIVITY_PENALTY = 0.5    # Productivity multiplier when burned out
+    BURNOUT_COLLAPSE_THRESHOLD = 0.9      # Burnout level considered "collapsed"
+
+    # Productivity mechanics
+    COORDINATION_OVERHEAD = 0.15       # Per-extra-employee coordination penalty
+    OVERTIME_PRODUCTIVITY_BOOST = 1.2  # Productivity multiplier during overtime
+    OVERTIME_PRODUCTIVITY_CAP = 1.5    # Max productivity modifier from overtime
+    CONTRACTOR_PRODUCTIVITY = 0.8      # Contractor productivity vs full-time
+    RAMP_UP_PENALTY = 0.5              # Productivity multiplier on first day of new task
+    EFFORT_UNCERTAINTY_MIN = 0.8       # Min effort multiplier (task easier than estimated)
+    EFFORT_UNCERTAINTY_MAX = 1.4       # Max effort multiplier (task harder than estimated)
+
+    # Reward shaping
+    REWARD_CRITICAL_TASK = 5.0
+    REWARD_NORMAL_TASK = 2.0
+    REWARD_UNBLOCK = 1.0
+    REWARD_CRITICAL_PATH_BONUS = 1.5   # Per downstream task unblocked by completing a blocker
+    REWARD_SKILL_MATCH = 0.5
+    PENALTY_TIME_COST = 0.25
+    PENALTY_OVERDUE_CRITICAL = 3.0
+    PENALTY_BURNOUT_THRESHOLD = 0.6
+    PENALTY_BURNOUT_MULTIPLIER = 2.0
+    PENALTY_REASSIGNMENT = 0.5
+    REWARD_NORMALIZE_FACTOR = 10.0
+
+    # Technical debt mechanics (medium/hard only)
+    TECH_DEBT_QUALITY_THRESHOLD = 0.5  # Below this, rushed work spawns bugs
+    TECH_DEBT_OVERTIME_PENALTY = 0.7   # Quality multiplier when overtime is active
+    TECH_DEBT_BUG_EFFORT_RATIO = 0.4   # Bug effort as fraction of original task effort
+    TECH_DEBT_MIN_DELAY = 2            # Min days before bug appears
+    TECH_DEBT_MAX_DELAY = 4            # Max days before bug appears
+
     def __init__(self):
         """Initialize the environment."""
         self._state = State(episode_id=str(uuid4()), step_count=0)
@@ -65,6 +103,7 @@ class AdaptiveProjectManagerEnv(Environment):
         self._messages: List[str] = []
         self._cumulative_reward: float = 0.0
         self._done: bool = False
+        self._pending_bugs: List[Dict[str, Any]] = []  # Scheduled bug tasks from tech debt
 
     def reset(self, seed: Optional[int] = None, episode_id: Optional[str] = None, task_id: str = "easy", **kwargs) -> ProjectObservation:
         """
@@ -97,6 +136,7 @@ class AdaptiveProjectManagerEnv(Environment):
         self._messages = []
         self._cumulative_reward = 0.0
         self._done = False
+        self._pending_bugs = []
         
         # Create project state from task config
         self._project_state = ProjectState(
@@ -147,6 +187,9 @@ class AdaptiveProjectManagerEnv(Environment):
         
         # 0. Advance day first (events trigger on the new day)
         self._project_state.day += 1
+        
+        # 0.5 Process any pending bug tasks from technical debt
+        self._process_pending_bugs()
         
         # 1. Process scheduled events for this day
         self._process_scheduled_events()
@@ -318,7 +361,10 @@ class AdaptiveProjectManagerEnv(Environment):
             # Overtime increases productivity but also burnout
             for emp in ps.employees:
                 if emp.available:
-                    emp.productivity_modifier = min(emp.productivity_modifier * 1.2, 1.5)
+                    emp.productivity_modifier = min(
+                        emp.productivity_modifier * self.OVERTIME_PRODUCTIVITY_BOOST,
+                        self.OVERTIME_PRODUCTIVITY_CAP
+                    )
             self._messages.append("Overtime requested - productivity +20%, burnout increases faster")
             
         elif contingency == "hire_contractor":
@@ -332,7 +378,7 @@ class AdaptiveProjectManagerEnv(Environment):
                     available=True,
                     workload=0.0,
                     burnout=0.0,
-                    productivity_modifier=0.8,  # Less productive than full-time
+                    productivity_modifier=self.CONTRACTOR_PRODUCTIVITY,
                 )
                 ps.employees.append(contractor)
                 # Contractors cost more
@@ -399,10 +445,31 @@ class AdaptiveProjectManagerEnv(Environment):
                 if prev_task:
                     prev_task.assigned_employees = [e for e in prev_task.assigned_employees if e != emp_id]
             
+            # Track ramp-up: reset counter if this is a new task for the employee
+            if emp.assigned_task_id != task_id:
+                emp.days_on_current_task = 0  # Just assigned — ramp-up penalty applies
+            
             # Make assignment
             emp.assigned_task_id = task_id
             if emp_id not in task.assigned_employees:
                 task.assigned_employees.append(emp_id)
+            
+            # Effort estimation uncertainty: when a task starts for the first time,
+            # reveal that the actual effort differs from the estimate.
+            # This models the real-world fact that effort estimates are never perfect.
+            if task.status == "todo":
+                effort_multiplier = self._rng.uniform(
+                    self.EFFORT_UNCERTAINTY_MIN,
+                    self.EFFORT_UNCERTAINTY_MAX
+                )
+                task.remaining_effort *= effort_multiplier
+                if abs(effort_multiplier - 1.0) > 0.1:
+                    direction = "harder" if effort_multiplier > 1.0 else "easier"
+                    self._messages.append(
+                        f"Task '{task.name}' turns out to be {direction} than estimated "
+                        f"(effort: {task.original_effort:.1f} -> {task.remaining_effort:.1f})"
+                    )
+            
             task.status = "in_progress"
             emp.workload = 1.0  # Full workload when assigned
 
@@ -414,6 +481,99 @@ class AdaptiveProjectManagerEnv(Environment):
             if dep_task and dep_task.status != "done":
                 return True
         return False
+
+    def _count_downstream_blocked(self, completed_task_id: str) -> int:
+        """
+        Count how many tasks are transitively blocked by a given task.
+        
+        If completing task_1 unblocks task_3, which in turn would unblock task_5,
+        then downstream count for task_1 = 2.
+        
+        This drives the critical path bonus: clearing a deep blocker is worth
+        more than completing a leaf task.
+        """
+        ps = self._project_state
+        count = 0
+        queue = [completed_task_id]
+        visited = {completed_task_id}
+        
+        while queue:
+            current_id = queue.pop(0)
+            for task in ps.tasks:
+                if task.id in visited:
+                    continue
+                if current_id in task.dependencies and task.status != "done":
+                    count += 1
+                    visited.add(task.id)
+                    queue.append(task.id)
+        
+        return count
+
+    def _check_task_quality(self, task: TaskState):
+        """
+        Check if a completed task was rushed or done with poor skill match.
+        If so, schedule a bug task to spawn later via technical debt.
+        """
+        ps = self._project_state
+        
+        if not task.assigned_employees:
+            return
+            
+        # Calculate quality based on skill match
+        skill_scores = []
+        for emp_id in task.assigned_employees:
+            emp = next((e for e in ps.employees if e.id == emp_id), None)
+            if not emp:
+                continue
+            if task.required_skill in emp.skills:
+                skill_scores.append(1.0)
+            elif any(s in task.required_skill or task.required_skill in s for s in emp.skills):
+                skill_scores.append(0.5)
+            else:
+                skill_scores.append(0.0)
+                
+        avg_skill = sum(skill_scores) / len(skill_scores) if skill_scores else 0.0
+        
+        # Penalize quality for overtime
+        if ps.overtime_active:
+            avg_skill *= self.TECH_DEBT_OVERTIME_PENALTY
+            
+        if avg_skill < self.TECH_DEBT_QUALITY_THRESHOLD:
+            # Task was rushed or done poorly. Spawn a bug!
+            bug_effort = max(1.0, task.original_effort * self.TECH_DEBT_BUG_EFFORT_RATIO)
+            delay = self._rng.randint(self.TECH_DEBT_MIN_DELAY, self.TECH_DEBT_MAX_DELAY)
+            
+            # Use original ID to generate deterministic bug ID
+            bug_id = f"bug_{task.id}_{ps.day}"
+            
+            self._pending_bugs.append({
+                "trigger_day": ps.day + delay,
+                "task": TaskState(
+                    id=bug_id,
+                    name=f"[BUG] Fix {task.name}",
+                    description=f"Technical debt from rushing {task.name}",
+                    required_skill=task.required_skill,
+                    original_effort=bug_effort,
+                    remaining_effort=bug_effort,
+                    priority="high",
+                    status="todo",
+                    dependencies=[],
+                    is_critical_path=False,
+                )
+            })
+
+    def _process_pending_bugs(self):
+        """Add any triggered bugs to the task list."""
+        ps = self._project_state
+        still_pending = []
+        for bug_info in self._pending_bugs:
+            if ps.day >= bug_info["trigger_day"]:
+                bug_task = bug_info["task"]
+                ps.tasks.append(bug_task)
+                self._messages.append(f"🚨 Technical Debt: Bug discovered in '{bug_task.name}'! Added to backlog.")
+            else:
+                still_pending.append(bug_info)
+        self._pending_bugs = still_pending
 
     def _progress_work(self) -> Tuple[List[str], List[str]]:
         """Progress work on all in-progress tasks. Returns (completed, unblocked) task IDs."""
@@ -431,6 +591,13 @@ class AdaptiveProjectManagerEnv(Environment):
             # Calculate productivity
             productivity = self._calculate_productivity(task)
             
+            # Increment ramp-up counters for all assigned employees
+            # (after productivity calc so day 0 = penalty, day 1+ = full speed)
+            for emp_id in task.assigned_employees:
+                for emp in ps.employees:
+                    if emp.id == emp_id:
+                        emp.days_on_current_task += 1
+            
             # Apply work
             task.remaining_effort -= productivity
             
@@ -441,12 +608,17 @@ class AdaptiveProjectManagerEnv(Environment):
                 ps.completed_tasks.append(task.id)
                 newly_completed.append(task.id)
                 
+                # Check if completion quality triggers technical debt (medium/hard only)
+                if ps.task_id in ("medium", "hard"):
+                    self._check_task_quality(task)
+                
                 # Free up assigned employees
                 for emp_id in task.assigned_employees:
                     for emp in ps.employees:
                         if emp.id == emp_id:
                             emp.assigned_task_id = None
                             emp.workload = 0.0
+                            emp.days_on_current_task = 0
                 task.assigned_employees = []
                 
                 # Check for newly unblocked tasks
@@ -487,8 +659,12 @@ class AdaptiveProjectManagerEnv(Environment):
             skill_score *= emp.productivity_modifier
             
             # Apply burnout penalty
-            if emp.burnout > 0.8:
-                skill_score *= 0.5
+            if emp.burnout > self.BURNOUT_PRODUCTIVITY_THRESHOLD:
+                skill_score *= self.BURNOUT_PRODUCTIVITY_PENALTY
+            
+            # Apply ramp-up penalty on first day of new task
+            if emp.days_on_current_task == 0:
+                skill_score *= self.RAMP_UP_PENALTY
             
             skill_scores.append(skill_score)
         
@@ -497,7 +673,7 @@ class AdaptiveProjectManagerEnv(Environment):
         
         # Coordination factor
         n_assigned = len(skill_scores)
-        coordination_factor = 1 / (1 + 0.15 * (n_assigned - 1))
+        coordination_factor = 1 / (1 + self.COORDINATION_OVERHEAD * (n_assigned - 1))
         
         return sum(skill_scores) * coordination_factor
 
@@ -517,12 +693,12 @@ class AdaptiveProjectManagerEnv(Environment):
             # Calculate recovery (1 if not working, 0 if working)
             recovery = 1.0 if emp.assigned_task_id is None else 0.0
             
-            # Update burnout: burnout = burnout + 0.15 * workload - 0.05 * recovery
-            delta = 0.15 * emp.workload - 0.05 * recovery
+            # Update burnout
+            delta = self.BURNOUT_WORK_RATE * emp.workload - self.BURNOUT_RECOVERY_RATE * recovery
             
             # Additional burnout from overtime
             if ps.overtime_active and emp.assigned_task_id:
-                delta += 0.1
+                delta += self.BURNOUT_OVERTIME_RATE
             
             emp.burnout = max(0.0, min(1.0, emp.burnout + delta))
             
@@ -579,12 +755,18 @@ class AdaptiveProjectManagerEnv(Environment):
             task = next((t for t in ps.tasks if t.id == task_id), None)
             if task:
                 if task.is_critical_path or task.priority == "critical":
-                    reward += 5.0
+                    reward += self.REWARD_CRITICAL_TASK
                 else:
-                    reward += 2.0
+                    reward += self.REWARD_NORMAL_TASK
         
-        # Reward for unblocked tasks
-        reward += 1.0 * len(newly_unblocked)
+        # Reward for unblocked tasks (flat per unblock)
+        reward += self.REWARD_UNBLOCK * len(newly_unblocked)
+        
+        # Critical path bonus: reward completing tasks that unblock downstream work
+        for task_id in newly_completed:
+            downstream = self._count_downstream_blocked(task_id)
+            if downstream > 0:
+                reward += self.REWARD_CRITICAL_PATH_BONUS * downstream
         
         # Reward for good skill matches in assignments
         skill_match_count = 0
@@ -593,21 +775,21 @@ class AdaptiveProjectManagerEnv(Environment):
             task = next((t for t in ps.tasks if t.id == assignment.task_id), None)
             if emp and task and task.required_skill in emp.skills:
                 skill_match_count += 1
-        reward += 0.5 * skill_match_count
+        reward += self.REWARD_SKILL_MATCH * skill_match_count
         
         # Base cost per step
-        reward -= 0.25
+        reward -= self.PENALTY_TIME_COST
         
         # Penalty for overdue critical tasks
         overdue_critical = sum(1 for t in ps.tasks 
                                if t.is_critical_path and t.status != "done" 
                                and ps.day > ps.total_days * 0.8)  # Late in project
-        reward -= 3.0 * overdue_critical
+        reward -= self.PENALTY_OVERDUE_CRITICAL * overdue_critical
         
         # Burnout penalty
         avg_burnout = sum(e.burnout for e in ps.employees) / len(ps.employees) if ps.employees else 0
-        if avg_burnout > 0.6:
-            reward -= (avg_burnout - 0.6) * 2.0
+        if avg_burnout > self.PENALTY_BURNOUT_THRESHOLD:
+            reward -= (avg_burnout - self.PENALTY_BURNOUT_THRESHOLD) * self.PENALTY_BURNOUT_MULTIPLIER
         
         # Reassignment penalty
         reassignment_count = 0
@@ -618,11 +800,10 @@ class AdaptiveProjectManagerEnv(Environment):
                 prev_task_obj = next((t for t in ps.tasks if t.id == prev_task), None)
                 if prev_task_obj and prev_task_obj.status == "in_progress":
                     reassignment_count += 1
-        reward -= 0.5 * reassignment_count
+        reward -= self.PENALTY_REASSIGNMENT * reassignment_count
         
-        # Normalize to reasonable range (roughly -2 to +10 per step)
-        # Then scale to [-1, 1] range for compatibility
-        normalized_reward = max(-1.0, min(1.0, reward / 10.0))
+        # Normalize to reasonable range, then scale to [-1, 1] for compatibility
+        normalized_reward = max(-1.0, min(1.0, reward / self.REWARD_NORMALIZE_FACTOR))
         
         return normalized_reward
 
@@ -668,6 +849,42 @@ class AdaptiveProjectManagerEnv(Environment):
         if ps.budget_spent >= ps.budget_total:
             self._done = True
             self._messages.append("Budget exhausted.")
+            return
+        
+        # Check if all available employees are burned out beyond recovery
+        available_emps = [e for e in ps.employees if e.available]
+        if available_emps and all(e.burnout >= self.BURNOUT_COLLAPSE_THRESHOLD for e in available_emps):
+            self._done = True
+            self._messages.append(
+                "Team burnout collapse: all available employees are critically burned out. "
+                "Project cannot continue."
+            )
+            return
+        
+        # Check for deadlock: remaining tasks exist but none can be worked on
+        remaining_tasks = [t for t in ps.tasks if t.status not in ("done", "blocked")]
+        blocked_or_done = [t for t in ps.tasks if t.status in ("done", "blocked")]
+        workable_tasks = [
+            t for t in ps.tasks
+            if t.status in ("todo", "in_progress")
+            and not self._has_unmet_dependencies(t)
+        ]
+        available_workers = [e for e in ps.employees if e.available]
+        
+        if not remaining_tasks and not all_done:
+            # All non-done tasks are blocked — deadlock
+            self._done = True
+            self._messages.append(
+                "Project deadlock: all remaining tasks are blocked with no path to resolution."
+            )
+            return
+        
+        if not workable_tasks and not available_workers and not all_done:
+            # No one can work and nothing can be worked on
+            self._done = True
+            self._messages.append(
+                "Project stalled: no available employees and no workable tasks."
+            )
             return
 
 

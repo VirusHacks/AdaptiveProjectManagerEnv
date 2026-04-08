@@ -9,12 +9,14 @@ Hard Task: Enterprise Migration Crisis
 
 Seed: 9001
 - 5 employees
-- 14 tasks
-- 25 day limit
+- 14 tasks (+ dynamically added compliance task + production hotfix)
+- 22 day limit (tight)
 - Day 5: backend unavailable 3 days
+- Day 7: production incident — urgent hotfix task injected
 - Day 9: new compliance task added
 - Day 12: vendor delay +3 effort
 - Day 15: if burnout high, QA productivity halves
+- Day 18: key person (Eve) unavailable 2 days
 """
 
 from typing import Dict, Any, List
@@ -31,8 +33,8 @@ def get_hard_task() -> Dict[str, Any]:
         "task_id": "hard",
         "name": "Enterprise Migration Crisis",
         "seed": 9001,
-        "total_days": 25,
-        "budget_total": 150000.0,
+        "total_days": 22,
+        "budget_total": 130000.0,
         "daily_burn_rate": 5000.0,
         "employees": get_employees(),
         "tasks": get_tasks(),
@@ -246,7 +248,7 @@ def get_tasks() -> List[TaskState]:
             required_skill="backend",
             remaining_effort=3.0,
             original_effort=3.0,
-            dependencies=["task_9", "task_10", "task_11"],
+            dependencies=["task_9", "task_10", "task_11", "task_12"],
             is_critical_path=True,
         ),
     ]
@@ -287,6 +289,22 @@ def get_risks() -> List[RiskState]:
             triggered=False,
             trigger_day=15,
         ),
+        RiskState(
+            id="risk_5",
+            name="Production incident",
+            probability=1.0,
+            impact="Urgent hotfix required within 3 days",
+            triggered=False,
+            trigger_day=7,
+        ),
+        RiskState(
+            id="risk_6",
+            name="Key person risk",
+            probability=1.0,
+            impact="DevOps lead poached, unavailable 2 days",
+            triggered=False,
+            trigger_day=18,
+        ),
     ]
 
 
@@ -317,6 +335,23 @@ def get_scheduled_events() -> List[Dict[str, Any]]:
             "message": "New compliance requirement: Compliance Audit task added",
         },
         {
+            "day": 7,
+            "type": "add_task",
+            "task": TaskState(
+                id="task_16",
+                name="Production Hotfix",
+                priority="critical",
+                status="todo",
+                required_skill="backend",
+                remaining_effort=2.0,
+                original_effort=2.0,
+                dependencies=[],
+                is_critical_path=True,
+                deadline_day=10,  # Must complete within 3 days
+            ).model_dump(),
+            "message": "PRODUCTION INCIDENT: Critical hotfix needed. Must complete within 3 days or stakeholder impact.",
+        },
+        {
             "day": 12,
             "type": "task_effort_increase",
             "task_id": "task_9",
@@ -330,5 +365,12 @@ def get_scheduled_events() -> List[Dict[str, Any]]:
             "affected_skills": ["qa", "testing"],
             "productivity_penalty": 0.5,
             "message": "High team burnout is affecting QA productivity",
+        },
+        {
+            "day": 18,
+            "type": "employee_unavailable",
+            "employee_id": "emp_5",
+            "duration": 2,
+            "message": "Eve has been poached by a competitor and is unavailable for 2 days while negotiating retention",
         },
     ]
