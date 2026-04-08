@@ -297,11 +297,7 @@ def create_custom_gradio_ui(web_manager=None) -> gr.Blocks:
                     interactive=True
                 )
                 
-                reset_btn = gr.Button("↻ RESET MISSION", variant="secondary", elem_classes=["secondary-btn"])
-
-                with gr.Row():
-                    dummy_team_btn = gr.Button("👥 ADD DUMMY TEAM", variant="secondary")
-                    dummy_tasks_btn = gr.Button("📋 ADD DUMMY TASKS", variant="secondary")
+                reset_btn = gr.Button("↻ RESET & INITIALIZE PROTOCOL", variant="secondary", elem_classes=["secondary-btn"])
                 
                 gr.Markdown("---")
                 
@@ -319,7 +315,13 @@ def create_custom_gradio_ui(web_manager=None) -> gr.Blocks:
                 
                 with gr.Row():
                     contingency_select = gr.Dropdown(
-                        choices=["none", "request_overtime", "hire_contractor", "defer_low_priority_work"],
+                        choices=[
+                            "none", 
+                            "request_overtime", 
+                            "hire_contractor", 
+                            "defer_low_priority_work",
+                            "request_emergency_funding"
+                        ],
                         value="none",
                         label="CONTINGENCY PROTOCOL"
                     )
@@ -554,92 +556,6 @@ def create_custom_gradio_ui(web_manager=None) -> gr.Blocks:
                 "tasks": [],
             }
 
-        def add_dummy_team(task_name, obs_dict, history):
-            obs = dict(obs_dict or _default_obs(task_name))
-            existing = obs.get("employees", [])
-            existing_ids = {e.get("id") for e in existing}
-
-            dummy_team = [
-                {"id": "emp_1", "skills": ["frontend", "ui_design"], "available": True, "assigned_task_id": None, "burnout": 0.12},
-                {"id": "emp_2", "skills": ["backend", "api"], "available": True, "assigned_task_id": None, "burnout": 0.18},
-                {"id": "emp_3", "skills": ["database", "backend"], "available": True, "assigned_task_id": None, "burnout": 0.08},
-                {"id": "emp_4", "skills": ["testing", "qa"], "available": True, "assigned_task_id": None, "burnout": 0.22},
-                {"id": "emp_5", "skills": ["devops", "security"], "available": True, "assigned_task_id": None, "burnout": 0.15},
-            ]
-
-            merged = existing + [emp for emp in dummy_team if emp["id"] not in existing_ids]
-            obs["employees"] = merged
-            obs["average_burnout"] = (
-                sum(e.get("burnout", 0.0) for e in merged) / len(merged) if merged else 0.0
-            )
-            obs["message"] = f"Added {len(merged)} dummy team members"
-
-            history = list(history or [])
-            history.append({
-                "day": obs.get("day", 1),
-                "message": "Dummy team added for simulation",
-                "cumulative_reward": history[-1]["cumulative_reward"] if history else 0.0,
-            })
-            return obs, history
-
-        def add_dummy_tasks(task_name, obs_dict, history):
-            obs = dict(obs_dict or _default_obs(task_name))
-
-            # Build dummy tasks to match current team size exactly.
-            # If no team exists yet, create a default set of 5 tasks.
-            employees = list(obs.get("employees", []))
-            team_size = len(employees) if len(employees) > 0 else 5
-
-            priority_cycle = ["critical", "high", "high", "medium", "low"]
-            effort_cycle = [2.0, 2.5, 3.0, 1.5, 2.0]
-
-            dummy_tasks = []
-            for i in range(team_size):
-                task_id = f"task_{i + 1}"
-
-                # Pick required skill from matching employee when available,
-                # otherwise fallback to a sensible rotating set.
-                if i < len(employees) and employees[i].get("skills"):
-                    required_skill = employees[i]["skills"][0]
-                else:
-                    fallback_skills = ["frontend", "backend", "database", "testing", "security"]
-                    required_skill = fallback_skills[i % len(fallback_skills)]
-
-                # Create a dependency chain so only first 1-2 are immediately ready.
-                if i == 0:
-                    deps = []
-                elif i == 1:
-                    deps = []
-                elif i == 2:
-                    deps = ["task_2"]
-                else:
-                    deps = [f"task_{i}"]
-
-                # Mark dependency-gated tasks as blocked in dummy mode for clarity.
-                status = "todo" if len(deps) == 0 else "blocked"
-
-                dummy_tasks.append(
-                    {
-                        "id": task_id,
-                        "status": status,
-                        "priority": priority_cycle[i % len(priority_cycle)],
-                        "required_skill": required_skill,
-                        "remaining_effort": effort_cycle[i % len(effort_cycle)],
-                        "dependencies": deps,
-                        "is_critical_path": i < min(2, team_size),
-                    }
-                )
-
-            # Overwrite task list intentionally (idempotent behavior for repeated clicks).
-            obs["tasks"] = dummy_tasks
-            obs["blocked_tasks"] = sum(1 for t in dummy_tasks if t.get("status") == "blocked")
-            obs["project_completion"] = (
-                sum(1 for t in dummy_tasks if t.get("status") == "done") / len(dummy_tasks)
-                if dummy_tasks
-                else 0.0
-            )
-            obs["message"] = f"Loaded {len(dummy_tasks)} dummy tasks for {team_size} team members"
-
             history = list(history or [])
             history.append({
                 "day": obs.get("day", 1),
@@ -670,46 +586,10 @@ def create_custom_gradio_ui(web_manager=None) -> gr.Blocks:
             ]
         )
 
-        dummy_team_btn.click(
-            fn=add_dummy_team,
-            inputs=[task_selector, obs_state, history_state],
-            outputs=[obs_state, history_state],
-        ).then(
-            fn=update_ui_components,
-            inputs=[obs_state, history_state],
-            outputs=[
-                comp_box, days_box, block_box, budget_box,
-                team_meters,
-                assignment_df,
-                reprio_select,
-                reward_plot,
-                step_rew_box, tot_rew_box,
-                event_log_html,
-            ],
-        )
-
         auto_assign_btn.click(
             fn=auto_assign_tasks,
             inputs=[obs_state],
             outputs=[assignment_df],
-        )
-
-        dummy_tasks_btn.click(
-            fn=add_dummy_tasks,
-            inputs=[task_selector, obs_state, history_state],
-            outputs=[obs_state, history_state],
-        ).then(
-            fn=update_ui_components,
-            inputs=[obs_state, history_state],
-            outputs=[
-                comp_box, days_box, block_box, budget_box,
-                team_meters,
-                assignment_df,
-                reprio_select,
-                reward_plot,
-                step_rew_box, tot_rew_box,
-                event_log_html,
-            ],
         )
         
         step_btn.click(
