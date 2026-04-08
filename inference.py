@@ -452,9 +452,9 @@ async def run_task(client: OpenAI, env, task_id: str) -> float:
         else:
             email_body = "The project finished with acceptable margins, but there's room for improvement in your resource allocation."
             
-        print("\n=== ✉️ NEW MESSAGE FROM CEO ===")
+        print("\n=== NEW MESSAGE FROM CEO ===")
         print(email_body)
-        print("===============================\n", flush=True)
+        print("==============================\n", flush=True)
 
     log_end(task=task_id, score=final_score)
     return final_score
