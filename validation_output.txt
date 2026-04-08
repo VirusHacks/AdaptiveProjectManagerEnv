@@ -1,0 +1,62 @@
+[START] task=easy
+[STEP] day=2 action={"assignments":[{"e":"emp_1","t":"task_1"},{"e":"emp_2","t":"task_2"},{"e":"emp_3","t":"task_5"}],"contingency":"none"} reward=0.12
+[STEP] day=3 action={"assignments":[{"e":"emp_1","t":"task_1"},{"e":"emp_2","t":"task_2"},{"e":"emp_3","t":"task_5"}],"contingency":"none"} reward=0.12
+[STEP] day=4 action={"assignments":[{"e":"emp_1","t":"task_1"},{"e":"emp_2","t":"task_2"},{"e":"emp_3","t":"task_4"}],"contingency":"none"} reward=1.00
+[STEP] day=5 action={"assignments":[{"e":"emp_1","t":"task_3"},{"e":"emp_2","t":"task_4"},{"e":"emp_3","t":"task_5"}],"contingency":"none"} reward=0.12
+[STEP] day=6 action={"assignments":[{"e":"emp_1","t":"task_3"},{"e":"emp_2","t":"task_4"},{"e":"emp_3","t":"task_5"}],"contingency":"none"} reward=0.12
+[STEP] day=7 action={"assignments":[{"e":"emp_1","t":"task_3"},{"e":"emp_2","t":"task_4"},{"e":"emp_3","t":"task_5"}],"contingency":"none"} reward=0.47
+[STEP] day=8 action={"assignments":[{"e":"emp_1","t":"task_3"},{"e":"emp_2","t":"task_5"},{"e":"emp_3","t":"task_5"}],"contingency":"none"} reward=0.82
+[STEP] day=9 action={"assignments":[{"e":"emp_1","t":"task_5"},{"e":"emp_2","t":"task_5"},{"e":"emp_3","t":"task_5"}],"contingency":"none"} reward=0.03
+[STEP] day=10 action={"assignments":[],"contingency":"none"} reward=-0.34
+[STEP] day=11 action={"assignments":[],"contingency":"none"} reward=-0.36
+[STEP] day=12 action={"assignments":[],"contingency":"none"} reward=0.45
+
+=== NEW MESSAGE FROM CEO ===
+The project finished with acceptable margins, but there's room for improvement in your resource allocation.
+==============================
+
+[END] task=easy score=0.82
+[START] task=medium
+[STEP] day=2 action={"assignments":[{"e":"emp_1","t":"task_1"},{"e":"emp_3","t":"task_3"},{"e":"emp_2","t":"task_2"}],"contingency":"none"} reward=0.12
+[STEP] day=3 action={"assignments":[{"e":"emp_4","t":"task_3"}],"contingency":"none"} reward=-0.03
+[STEP] day=4 action={"assignments":[],"contingency":"none"} reward=0.93
+[STEP] day=5 action={"assignments":[{"e":"emp_1","t":"task_3"}],"contingency":"none"} reward=1.00
+[STEP] day=6 action={"assignments":[{"e":"emp_2","t":"task_4"},{"e":"emp_1","t":"task_5"}],"contingency":"none"} reward=0.07
+[STEP] day=7 action={"assignments":[{"e":"emp_3","t":"task_4"},{"e":"emp_4","t":"task_5"}],"contingency":"none"} reward=0.07
+[STEP] day=8 action={"assignments":[],"contingency":"none"} reward=-0.03
+[STEP] day=9 action={"assignments":[{"e":"emp_2","t":"task_4"}],"contingency":"none"} reward=1.00
+[STEP] day=10 action={"assignments":[{"e":"emp_2","t":"task_6"}],"contingency":"none"} reward=0.03
+[STEP] day=11 action={"assignments":[{"e":"emp_4","t":"task_6"}],"contingency":"none"} reward=-0.03
+[STEP] day=12 action={"assignments":[{"e":"emp_1","t":"task_6"}],"contingency":"none"} reward=-0.03
+[STEP] day=13 action={"assignments":[{"e":"emp_3","t":"task_6"}],"contingency":"none"} reward=-0.06
+[STEP] day=14 action={"assignments":[],"contingency":"none"} reward=-0.09
+[STEP] day=15 action={"assignments":[],"contingency":"none"} reward=-0.70
+
+=== NEW MESSAGE FROM CEO ===
+The project finished with acceptable margins, but there's room for improvement in your resource allocation.
+==============================
+
+[END] task=medium score=0.44
+[START] task=hard
+[STEP] day=2 action={"assignments":[{"e":"emp_2","t":"task_1"},{"e":"emp_5","t":"task_3"}],"contingency":"none"} reward=0.07
+[STEP] day=3 action={"assignments":[{"e":"emp_3","t":"task_1"},{"e":"emp_1","t":"task_3"}],"contingency":"none"} reward=0.03
+[STEP] day=4 action={"assignments":[{"e":"emp_4","t":"task_1"}],"contingency":"none"} reward=1.00
+[STEP] day=5 action={"assignments":[{"e":"emp_3","t":"task_2"},{"e":"emp_2","t":"task_4"},{"e":"emp_5","t":"task_12"}],"contingency":"none"} reward=0.12
+[STEP] day=6 action={"assignments":[{"e":"emp_4","t":"task_2"},{"e":"emp_1","t":"task_4"}],"contingency":"none"} reward=-0.03
+[STEP] day=7 action={"assignments":[],"contingency":"none"} reward=0.33
+[STEP] day=8 action={"assignments":[{"e":"emp_5","t":"task_2"}],"contingency":"none"} reward=-0.03
+[STEP] day=9 action={"assignments":[{"e":"emp_2","t":"task_2"}],"contingency":"none"} reward=1.00
+[STEP] day=10 action={"assignments":[{"e":"emp_3","t":"task_5"},{"e":"emp_2","t":"task_16"},{"e":"emp_4","t":"task_4"}],"contingency":"none"} reward=0.07
+[STEP] day=11 action={"assignments":[{"e":"emp_5","t":"task_4"}],"contingency":"defer_low_priority_work"} reward=-0.06
+[STEP] day=12 action={"assignments":[],"contingency":"defer_low_priority_work"} reward=0.43
+[STEP] day=13 action={"assignments":[{"e":"emp_2","t":"task_4"}],"contingency":"defer_low_priority_work"} reward=-0.04
+[STEP] day=14 action={"assignments":[],"contingency":"defer_low_priority_work"} reward=-0.09
+[STEP] day=15 action={"assignments":[],"contingency":"defer_low_priority_work"} reward=-0.10
+[STEP] day=16 action={"assignments":[],"contingency":"defer_low_priority_work"} reward=-0.11
+
+=== NEW MESSAGE FROM CEO ===
+Utter failure. You barely finished half the project. We are losing the client.
+==============================
+
+[END] task=hard score=0.23
+[SUMMARY] average_score=0.49

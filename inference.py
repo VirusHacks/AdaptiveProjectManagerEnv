@@ -72,19 +72,26 @@ SYSTEM_PROMPT = textwrap.dedent("""
     STRATEGY GUIDELINES:
     1. DEPENDENCY CHAINS: Always check task dependencies. Prioritize tasks that unblock
        the most downstream work. Completing a blocker is worth more than completing a leaf task.
-    2. SKILL MATCHING: Assign employees whose skills exactly match the task's required_skill.
+       NOTE: Some tasks are "Mutually Exclusive" (e.g., Buy vs Build). Completing one 
+       automatically cancels the other and unblocks the shared downstream dependencies.
+    2. SKILL MATCHING: Assign employees whose skills match the task's required_skill.
        Exact match = 1.0 productivity, partial = 0.5, mismatch = 0.0.
-    3. CRITICAL PATH: Tasks marked is_critical_path=true determine the deadline. Focus on these.
-    4. BURNOUT MANAGEMENT: Employees with burnout > 0.8 work at 50% capacity.
+    3. THE MYTHICAL MAN-MONTH: Assigning 2+ employees to the same task causes coordination
+       tax (Productivity drops to 80% with 2 devs, 60% with 3+ devs).
+    4. PAIR PROGRAMMING IMMUNITY: Assigning 2+ employees to a task grants complete 
+       immunity against Technical Debt bug spawning. Use this for high-risk critical tasks.
+    5. CRITICAL PATH: Tasks marked is_critical_path=true determine the deadline.
+    6. BURNOUT MANAGEMENT: Employees with burnout > 0.8 work at 50% capacity.
        Rotate employees or leave some idle to recover. Burnout above 0.6 triggers penalties.
-    5. CONTINGENCY TIMING:
-       - "request_overtime": Use ONLY when behind schedule AND average burnout < 0.5
-       - "hire_contractor": Use early if team is small and many tasks remain
-       - "defer_low_priority_work": Use when deadline is tight to focus on critical path
-       - "none": Default. Don't waste contingency actions when not needed.
-    6. LONG-TERM THINKING: Overtime today causes burnout tomorrow. A burned-out team on day 15
-       is worse than a slightly delayed team on day 8.
-    7. Don't assign unavailable employees. Don't assign to blocked or done tasks.
+    7. CONTINGENCY TIMING:
+       - "request_overtime": Increase short-term speed; increases long-term burnout.
+       - "hire_contractor": Add capacity; reduces budget.
+       - "defer_low_priority_work": Drop non-critical scope to focus on blockers.
+       - "request_emergency_funding": Grants +$20k instantly; slashes stakeholder satisfaction.
+       - "none": Default.
+    8. LONG-TERM THINKING: Overtime today causes burnout tomorrow. Rushed work results in 
+       Technical Debt (bugs appearing in backlog 2-4 days later).
+    9. Don't assign unavailable employees. Don't assign to blocked or done tasks.
 
     Reply ONLY with the JSON action, no other text.
 """).strip()
@@ -118,18 +125,20 @@ def build_user_prompt(
     # Format tasks
     task_lines = []
     for t in tasks:
-        status_emoji = {"todo": "⬜", "in_progress": "🔄", "blocked": "🚫", "done": "✅"}.get(t.status, "?")
+        status_char = {"todo": "[ ]", "in_progress": "[~]", "blocked": "[B]", "done": "[X]"}.get(t.status, "[?]")
         deps = f" (depends on: {', '.join(t.dependencies)})" if t.dependencies else ""
         assigned = f" [assigned: {', '.join(t.assigned_employees)}]" if t.assigned_employees else ""
+        mx = f" [exclusive_with: {t.mutually_exclusive_with}]" if t.mutually_exclusive_with else ""
+        cost = f" [fixed_cost: ${t.fixed_cost:,.0f}]" if t.fixed_cost > 0 else ""
         task_lines.append(
-            f"  {status_emoji} {t.id}: {t.name} | priority={t.priority} | skill={t.required_skill} | "
-            f"effort_remaining={t.remaining_effort:.1f} | critical_path={t.is_critical_path}{deps}{assigned}"
+            f"  {status_char} {t.id}: {t.name} | priority={t.priority} | skill={t.required_skill} | "
+            f"effort_rem={t.remaining_effort:.1f} | critical={t.is_critical_path}{mx}{cost}{deps}{assigned}"
         )
     
     # Format employees
     emp_lines = []
     for e in employees:
-        avail = "✅" if e.available else "❌"
+        avail = "AVAILABLE" if e.available else "UNAVAILABLE"
         assigned = f" -> {e.assigned_task_id}" if e.assigned_task_id else " -> unassigned"
         emp_lines.append(
             f"  {avail} {e.id} ({e.name}): skills={e.skills} | burnout={e.burnout:.2f} | workload={e.workload:.1f}{assigned}"
