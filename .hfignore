@@ -1,0 +1,10 @@
+# Ignore lock files and cache during HF upload
+uv.lock
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+outputs/
+debug_scripts/
+test_*.py

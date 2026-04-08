@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# validate-submission.sh — OpenEnv Submission Validator
+# prevalidation.sh — Adaptive Project Manager Submission Validator
 #
 # Checks that your HF Space is live, Docker image builds, and openenv validate passes.
 #
@@ -10,19 +10,15 @@
 #   - curl (usually pre-installed)
 #
 # Run:
-#   curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/main/scripts/validate-submission.sh | bash -s -- <ping_url> [repo_dir]
-#
-#   Or download and run locally:
-#     chmod +x validate-submission.sh
-#     ./validate-submission.sh <ping_url> [repo_dir]
+#   ./prevalidation.sh <ping_url> [repo_dir]
 #
 # Arguments:
-#   ping_url   Your HuggingFace Space URL (e.g. https://your-space.hf.space)
+#   ping_url   Your HuggingFace Space URL (e.g. https://huggingface.co/spaces/virustechhacks/adaptive-project-management)
 #   repo_dir   Path to your repo (default: current directory)
 #
 # Examples:
-#   ./validate-submission.sh https://my-team.hf.space
-#   ./validate-submission.sh https://my-team.hf.space ./my-repo
+#   ./prevalidation.sh https://virustechhacks-adaptive-project-management.hf.space
+#   ./prevalidation.sh https://virustechhacks-adaptive-project-management.hf.space ./hustlers_env
 #
 
 set -uo pipefail
@@ -97,7 +93,8 @@ stop_at() {
 
 printf "\n"
 printf "${BOLD}========================================${NC}\n"
-printf "${BOLD}  OpenEnv Submission Validator${NC}\n"
+printf "${BOLD}  Adaptive Project Manager${NC}\n"
+printf "${BOLD}  Submission Validator${NC}\n"
 printf "${BOLD}========================================${NC}\n"
 log "Repo:     $REPO_DIR"
 log "Ping URL: $PING_URL"
