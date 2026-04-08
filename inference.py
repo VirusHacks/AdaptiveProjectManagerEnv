@@ -367,8 +367,8 @@ async def run_task(client: OpenAI, env, task_id: str) -> float:
             log_step(day=obs.day, action=action_dict, reward=reward)
             
             if result.done:
-                # Get final score from metadata
-                final_score = obs.metadata.get("final_score", 0.0)
+                # Get final score - try direct field first, then metadata fallback
+                final_score = obs.final_score if obs.final_score is not None else obs.metadata.get("final_score", 0.0)
                 break
         
         # If we reached max steps without done, compute score from rewards

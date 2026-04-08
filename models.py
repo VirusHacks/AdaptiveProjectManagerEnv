@@ -125,6 +125,8 @@ class ProjectObservation(Observation):
     risks: List[RiskState] = Field(default_factory=list, description="All risk states")
     message: str = Field(default="", description="Status message about recent events")
     critical_path_progress: float = Field(default=0.0, description="Critical path completion (0-1)")
+    # Final score field - populated when episode ends (workaround for OpenEnv metadata serialization)
+    final_score: Optional[float] = Field(default=None, description="Final graded score (0-1) when episode ends")
     
 
 # ============================================================================

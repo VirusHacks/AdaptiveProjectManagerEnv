@@ -112,6 +112,7 @@ class AdaptiveProjectManagerClient(
             done=payload.get("done", False),
             reward=payload.get("reward"),
             metadata=obs_data.get("metadata", {}),
+            final_score=obs_data.get("final_score"),  # Direct field for final score
         )
 
         return StepResult(

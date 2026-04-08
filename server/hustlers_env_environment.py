@@ -228,10 +228,11 @@ class AdaptiveProjectManagerEnv(Environment):
         
         # Compute final score if done
         info = {}
+        computed_final_score = None
         if self._done:
             grader = GRADER_REGISTRY.get(ps.task_id, GRADER_REGISTRY["easy"])
-            final_score = grader(ps)
-            info["final_score"] = final_score
+            computed_final_score = grader(ps)
+            info["final_score"] = computed_final_score
         
         return ProjectObservation(
             day=ps.day,
@@ -249,6 +250,7 @@ class AdaptiveProjectManagerEnv(Environment):
             done=self._done,
             reward=reward,
             metadata=info,
+            final_score=computed_final_score,  # Direct field for serialization
         )
 
     def _process_scheduled_events(self):
